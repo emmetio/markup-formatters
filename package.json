@@ -1,0 +1,24 @@
+{
+  "name": "html-formatter",
+  "version": "0.0.1",
+  "description": "Outputs parsed Emmet abbreviation as HTML",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/emmetio/html-formatter.git"
+  },
+  "keywords": [
+    "emmet",
+    "abbreviation",
+    "html"
+  ],
+  "author": "Sergey Chikuyonok <serge.che@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/emmetio/html-formatter/issues"
+  },
+  "homepage": "https://github.com/emmetio/html-formatter#readme"
+}
