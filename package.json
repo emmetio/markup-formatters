@@ -1,14 +1,14 @@
 {
-  "name": "html-formatter",
+  "name": "@emmetio/markup-formatters",
   "version": "0.0.1",
-  "description": "Outputs parsed Emmet abbreviation as HTML",
+  "description": "Formats and outputs Emmet abbreviation in different markup languages (HTML, XML, Slim, Pug etc)",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/emmetio/html-formatter.git"
+    "url": "git+https://github.com/emmetio/markup-formatters.git"
   },
   "keywords": [
     "emmet",
@@ -18,9 +18,9 @@
   "author": "Sergey Chikuyonok <serge.che@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/emmetio/html-formatter/issues"
+    "url": "https://github.com/emmetio/markup-formatters/issues"
   },
-  "homepage": "https://github.com/emmetio/html-formatter#readme",
+  "homepage": "https://github.com/emmetio/markup-formatters#readme",
   "devDependencies": {
     "babel-plugin-transform-es2015-modules-commonjs": "^6.18.0",
     "babel-register": "^6.18.0",
