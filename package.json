@@ -4,7 +4,7 @@
   "description": "Formats and outputs Emmet abbreviation in different markup languages (HTML, XML, Slim, Pug etc)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "repository": {
     "type": "git",
@@ -22,6 +22,8 @@
   },
   "homepage": "https://github.com/emmetio/markup-formatters#readme",
   "devDependencies": {
+    "@emmetio/abbreviation": "^0.4.5",
+    "@emmetio/output-profile": "^0.1.0",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.18.0",
     "babel-register": "^6.18.0",
     "mocha": "^3.2.0"

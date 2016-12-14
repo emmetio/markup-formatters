@@ -1,14 +1,13 @@
 'use strict';
 
+
 /**
- * Outputs given parsed abbreviation as HTML
+ * Outputs given parsed abbreviation in specified syntax
  * @param {Node} tree Parsed abbreviation tree
- * @param {Profile} Output profile (@see @emmetio/output-profile)
+ * @param {String} syntax Output syntax. If unknown, `html` syntax is used
+ * @param {Profile} Output profile
  * @return {String}
  */
-export default function outputHTML(tree, profile) {
-    const profile = new Profile(options);
-
-
+export default function(tree, syntax profile) {
 
 };

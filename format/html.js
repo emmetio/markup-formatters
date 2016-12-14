@@ -1,6 +1,7 @@
 'use strict';
 
-import format from '../lib/formatter';
+import formatter from '../lib/formatter';
+import Format from '../lib/format';
 
 /**
  * Outputs given parsed abbreviation as HTML
@@ -9,9 +10,22 @@ import format from '../lib/formatter';
  * @return {String}
  */
 export default function(tree, profile) {
-	return format(tree, (node, level, next) => {
-		const f = getFormat(node, level, profile);
-		
+	return formatter(tree, (node, level, next) => {
+        if (node.isTextOnly) {
+            return node.value + next();
+        }
+
+        if (node.isGroup) {
+            return next();
+        }
+
+        const f = getFormat(node, level, profile);
+        const attrs = node.attributes.map(attr => profile.attribute(attr, '=')).join(' ');
+
+        return f.open(`<${node.name}${attrs ? ' ' + attrs : ''}${profile.selfClose()}>`)
+            + f.text(node.value)
+            + next()
+            + f.close(!node.selfClosing ? `</${node.name}>` : '');
 	});
 };
 
@@ -19,18 +33,11 @@ export default function(tree, profile) {
  * Get formatting options for given node
  * @param  {Node} node
  * @param  {Profile} profile
- * @return {Object}
+ * @return {Format}
  */
 function getFormat(node, level, profile) {
 	const popt = profile.options;
-	const format = {
-		beforeOpen: '',
-		afterOpen: '',
-		beforeClose: '',
-		afterClose: '',
-		indent: '',
-		newline: ''
-	};
+	const format = new Format();
 
 	if (!popt.format) {
 		return format;
@@ -38,7 +45,7 @@ function getFormat(node, level, profile) {
 
 	const nl = '\n';
 	const nodeName = node.name || '';
-	const indentLevel = popt.formatSkip.includes(nodeName.toLowerCase()) ? 0 : level;
+	const indentLevel = popt.formatSkip.has(nodeName.toLowerCase()) ? 0 : level;
 	format.indent = profile.indent(indentLevel);
 	format.newline = nl;
 
@@ -47,21 +54,21 @@ function getFormat(node, level, profile) {
 			&& (profile.formatTagNewlineLeaf || node.children.length);
 
 		if (!forceNl) {
-			forceNl = popt.formatForce.includes(nodeName);
+			forceNl = popt.formatForce.has(nodeName);
 		}
 
 		// formatting block-level elements
 		if (!node.isTextOnly) {
 			if (shouldAddLineBreakBefore(node, profile)) {
 				// do not indent the very first element
-				if (!isVeryFirstChild(item)) {
-					format.beforeOpen = nl;
+				if (!isVeryFirstChild(node)) {
+					format.beforeOpen = nl + format.indent;
 				}
 
 				if (hasBlockChildren(node, profile)
 					|| shouldBreakChild(node, profile)
 					|| (forceNl && !node.selfClosing)) {
-						format.beforeClose = nl;
+						format.beforeClose = nl + format.indent;
 					}
 
 				if (forceNl && !item.children.length && !node.selfClosing) {
@@ -75,6 +82,7 @@ function getFormat(node, level, profile) {
 		}
 	}
 
+    return format;
 }
 
 /**
@@ -103,7 +111,7 @@ function hasBlockChildren(node, profile) {
  * @return {Boolean}
  */
 function isVeryFirstChild(node) {
-	return node.parent && isRoot(node.parent) && !node.parent.firstChild === node;
+	return isRoot(node.parent) && node.parent.firstChild === node;
 }
 
 /**
@@ -113,7 +121,7 @@ function isVeryFirstChild(node) {
  * @return {Boolean}
  */
 function shouldAddLineBreakBefore(node, profile) {
-	if (isRoot(node) || !profile.inline_break) {
+	if (isRoot(node) || !profile.options.inlineBreak) {
 		return false;
 	}
 
@@ -144,7 +152,7 @@ function shouldBreakChild(node, profile) {
  */
 function shouldFormatInline(node, profile) {
 	let inlineSiblings = 0;
-	node.children.some(child => {
+	return node.children.some(child => {
 		if (child.isTextOnly || !profile.isInline(child)) {
 			inlineSiblings = 0;
 		} else if (profile.isInline(child)) {
@@ -161,7 +169,7 @@ function shouldFormatInline(node, profile) {
  * @return {Boolean}
  */
 function isRoot(node) {
-	return !node.parent;
+	return node && !node.parent;
 }
 
 /**
