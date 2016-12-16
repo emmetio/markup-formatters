@@ -1,5 +1,6 @@
 'use strict';
 
+import parseFields from '@emmetio/field-parser';
 import formatter from '../lib/formatter';
 import Format from '../lib/format';
 
@@ -10,9 +11,16 @@ import Format from '../lib/format';
  * @return {String}
  */
 export default function(tree, profile) {
+	// Each node may contain fields like `${1:placeholder}`.
+	// Since most modern editors will link all fields with the same
+	// index, we have to ensure that different nodes has their on indicies.
+	// We’ll use this `field` object to globally increment field indices
+	// during output
+	const fieldState = { index: 0 };
+
 	return formatter(tree, (node, level, next) => {
         if (node.isTextOnly) {
-            return node.value + next();
+            return formatText(node.value, profile, fieldState) + next();
         }
 
         if (node.isGroup) {
@@ -20,10 +28,13 @@ export default function(tree, profile) {
         }
 
         const f = getFormat(node, level, profile);
-        const attrs = node.attributes.map(attr => profile.attribute(attr, '=')).join(' ');
+        const attrs = node.attributes
+		.map(attr => formatAttribute(attr, profile, fieldState))
+		.filter(Boolean)
+		.join(' ');
 
         return f.open(`<${node.name}${attrs ? ' ' + attrs : ''}${profile.selfClose()}>`)
-            + f.text(node.value)
+            + f.text(formatText(node.value, profile, fieldState))
             + next()
             + f.close(!node.selfClosing ? `</${node.name}>` : '');
 	});
@@ -83,6 +94,52 @@ function getFormat(node, level, profile) {
 	}
 
     return format;
+}
+
+/**
+ * Formats given attribute
+ * @param  {Attribute} attr
+ * @param  {Profile} profile
+ * @param  {Object} fieldState
+ * @return {String}
+ */
+function formatAttribute(attr, profile, fieldState) {
+	if (attr.options.implied && attr.value == null) {
+		return null;
+	}
+
+	const attrName = profile.attribute(attr.name);
+
+	return `${attrName}=${profile.quote(formatText(attr.value, profile, fieldState))}`;
+}
+
+/**
+ * Formats given text: parses fields and outputs them according to profile
+ * preferences
+ * @param  {String} text
+ * @param  {Profile} profile
+ * @param  {Object} field
+ * @return {String}
+ */
+function formatText(text, profile, fieldState) {
+	if (text == null || text === '') {
+		return profile.field(fieldState.index++);
+	}
+
+	let largestIndex = -1;
+	const model = parseFields(text);
+	model.fields.forEach(field => {
+		field.index += fieldState.index;
+		if (field.index > largestIndex) {
+			largestIndex = field.index;
+		}
+	});
+
+	if (largestIndex !== -1) {
+		fieldState.index = largestIndex + 1;
+	}
+
+	return model.mark((index, placeholder) => profile.field(index, placeholder));
 }
 
 /**
