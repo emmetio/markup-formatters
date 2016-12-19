@@ -16,7 +16,7 @@ export default function(tree, profile) {
 	// index, we have to ensure that different nodes has their on indicies.
 	// We’ll use this `field` object to globally increment field indices
 	// during output
-	const fieldState = { index: 0 };
+	const fieldState = { index: 1 };
 
 	return formatter(tree, (node, level, next) => {
         if (node.isTextOnly) {
@@ -62,34 +62,30 @@ function getFormat(node, level, profile) {
 
 	if (popt.formatTagNewline !== false) {
 		let forceNl = popt.formatTagNewline === true
-			&& (profile.formatTagNewlineLeaf || node.children.length);
+			&& (popt.formatTagNewlineLeaf || node.children.length);
 
 		if (!forceNl) {
 			forceNl = popt.formatForce.has(nodeName);
 		}
 
 		// formatting block-level elements
-		if (!node.isTextOnly) {
-			if (shouldAddLineBreakBefore(node, profile)) {
-				// do not indent the very first element
-				if (!isVeryFirstChild(node)) {
-					format.beforeOpen = nl + format.indent;
-				}
-
-				if (hasBlockChildren(node, profile)
-					|| shouldBreakChild(node, profile)
-					|| (forceNl && !node.selfClosing)) {
-						format.beforeClose = nl + format.indent;
-					}
-
-				if (forceNl && !item.children.length && !node.selfClosing) {
-					item.afterOpen = nl + format.indent;
-				}
-			} else if (profile.isInline(node) && hasBlockSibling(node, profile) && !isVeryFirstChild(node)) {
-				item.beforeOpen = nl;
-			} else if (profile.isInline(node) && shouldBreakInsideInline(node, profile)) {
-				item.beforeClose = nl;
+		if (shouldAddLineBreakBefore(node, profile)) {
+			// do not indent the very first element
+			if (!isVeryFirstChild(node)) {
+				format.beforeOpen = nl + format.indent;
 			}
+
+			if (shouldBreakChild(node, profile) || (forceNl && !node.selfClosing)) {
+				format.beforeClose = nl + format.indent;
+			}
+
+			if (forceNl && !item.children.length && !node.selfClosing) {
+				item.afterOpen = nl + format.indent;
+			}
+		} else if (profile.isInline(node) && hasBlockSibling(node, profile) && !isVeryFirstChild(node)) {
+			item.beforeOpen = nl;
+		} else if (profile.isInline(node) && shouldBreakInsideInline(node, profile)) {
+			item.beforeClose = nl;
 		}
 	}
 
@@ -198,7 +194,10 @@ function shouldAddLineBreakBefore(node, profile) {
 function shouldBreakChild(node, profile) {
 	// we need to test only one child element, because
 	// hasBlockChildren() method will do the rest
-	return node.children.length && shouldAddLineBreakBefore(node.firstChild, profile);
+	return node.children.length && (
+		hasBlockChildren(node, profile)
+		|| shouldAddLineBreakBefore(node.firstChild, profile)
+	);
 }
 
 /**

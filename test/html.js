@@ -1,11 +1,12 @@
 const assert = require('assert');
 const parse = require('@emmetio/abbreviation');
 const Profile = require('@emmetio/output-profile');
+const replaceVariables = require('@emmetio/variable-resolver');
 require('babel-register');
 const html = require('../format/html').default;
 
 describe('HTML formatter', () => {
-    const expand = (abbr, profile) => html(parse(abbr), profile || new Profile());
+    const expand = (abbr, profile) => html(replaceVariables(parse(abbr)), profile || new Profile());
 
     it('basic', () => {
         assert.equal(expand('div>p'), '<div>\n\t<p></p>\n</div>');
@@ -28,4 +29,19 @@ describe('HTML formatter', () => {
 
         assert.equal(expand('img[src]/+p', profile), '<img src="">\n<p></p>');
     });
+
+    it('generate fields', () => {
+		const profile = new Profile({field: (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`});
+		assert.equal(expand('a[href]', profile), '<a href="${1}">${2}</a>');
+		assert.equal(expand('a[href]*2', profile), '<a href="${1}">${2}</a><a href="${3}">${4}</a>');
+
+		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2', profile), '${1} ${2:foo} ${3:bar}${4} ${5:foo} ${6:bar}');
+		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2'), ' foo bar foo bar');
+	});
+
+	it('pseudo snippet output & format', () => {
+		// console.log(expand('div'));
+		// console.log(expand('div>span'));
+		console.log(expand('div>{<!-- ${child} -->}>p'));
+	});
 });
