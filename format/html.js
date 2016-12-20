@@ -1,7 +1,7 @@
 'use strict';
 
 import parseFields from '@emmetio/field-parser';
-import formatter from '../lib/formatter';
+import output from '../lib/output-builder';
 import Format from '../lib/format';
 
 /**
@@ -18,7 +18,7 @@ export default function(tree, profile) {
 	// during output
 	const fieldState = { index: 1 };
 
-	return formatter(tree, (node, level, next) => {
+	return output(tree, (node, level, next) => {
         if (node.isTextOnly) {
             return formatText(node.value, profile, fieldState) + next();
         }

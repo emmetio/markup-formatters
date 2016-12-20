@@ -4,9 +4,11 @@ const Profile = require('@emmetio/output-profile');
 const replaceVariables = require('@emmetio/variable-resolver');
 require('babel-register');
 const html = require('../format/html').default;
+const html2 = require('../format/html2').default;
 
 describe('HTML formatter', () => {
-    const expand = (abbr, profile) => html(replaceVariables(parse(abbr)), profile || new Profile());
+    const expand = (abbr, profile) => html2(replaceVariables(parse(abbr)), profile || new Profile());
+    // const expand = (abbr, profile) => html2(replaceVariables(parse(abbr)), profile || new Profile());
 
     it('basic', () => {
         assert.equal(expand('div>p'), '<div>\n\t<p></p>\n</div>');
