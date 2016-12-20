@@ -41,9 +41,12 @@ describe('HTML formatter', () => {
 		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2'), ' foo bar foo bar');
 	});
 
-	it('pseudo snippet output & format', () => {
-		// console.log(expand('div'));
-		// console.log(expand('div>span'));
-		console.log(expand('div>{<!-- ${child} -->}>p'));
+	it('mixed content', () => {
+        assert.equal(expand('div{foo}'), '<div>foo</div>');
+        assert.equal(expand('div>{foo}'), '<div>foo</div>');
+        assert.equal(expand('div>{foo}+{bar}'), '<div>foobar</div>');
+        assert.equal(expand('div>{foo}+{bar}+p'), '<div>\n\tfoobar\n\t<p></p>\n</div>');
+        assert.equal(expand('div>{foo}+{bar}+p+{foo}+{bar}+p'), '<div>\n\tfoobar\n\t<p></p>\n\tfoobar\n\t<p></p>\n</div>');
+        assert.equal(expand('div>{foo}>p'), '<div>\n\tfoo\n\t<p></p>\n</div>');
 	});
 });

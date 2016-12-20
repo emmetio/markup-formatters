@@ -18,24 +18,21 @@ export default function(tree, profile) {
 	const formats = getTreeFormat(tree, profile);
 
 	return output(tree, (node, level, next) => {
-        if (node.isTextOnly) {
-            return formatText(node.value, profile, fieldState) + next();
-        }
-
         if (node.isGroup) {
             return next();
         }
 
-        const f = formats.get(node);
+        const format = formats.get(node);
+
         const attrs = node.attributes
 		.map(attr => formatAttribute(attr, profile, fieldState))
 		.filter(Boolean)
 		.join(' ');
 
-        return f.open(`<${node.name}${attrs ? ' ' + attrs : ''}${profile.selfClose()}>`)
-            + f.text(formatText(node.value, profile, fieldState))
+        return format.open(node.name ? `<${node.name}${attrs ? ' ' + attrs : ''}${profile.selfClose()}>` : '')
+            + format.text(formatText(node.value, profile, fieldState))
             + next()
-            + f.close(!node.selfClosing ? `</${node.name}>` : '');
+            + (node.name && !node.selfClosing ? format.close(`</${node.name}>`) : '');
 	});
 }
 
@@ -55,9 +52,16 @@ function getTreeFormat(tree, profile) {
 	};
 
 	tree.walk((node, level) => {
+        // decrease indent level:
+        // * if parent node is a text-only node
+        // * if current node name is explicitly set to decrease level
+        const nodeName = (node.name || '').toLowerCase();
+        if (level && (node.parent.isTextOnly || profile.options.formatSkip.has(nodeName))) {
+            level--;
+        }
+
 		const format = getFormat(node);
-		const nodeName = (node.name || '').toLowerCase();
-		format.indent = profile.indent(level + (profile.options.formatSkip.has(nodeName) ? -1 : 0));
+		format.indent = profile.indent(level);
 		format.newline = '\n';
 
 		if (shouldFormatNode(node, profile)) {
@@ -65,12 +69,12 @@ function getTreeFormat(tree, profile) {
 
 			// if it’s a first child of parent node, make sure parent node
 			// contains formatting for its text value
-			if (isFirstChild(node) && node.parent.value) {
+			if (isFirstChild(node) && !node.parent.isTextOnly && node.parent.value) {
 				const parentFormat = getFormat(node.parent);
 				parentFormat.afterOpen = format.beforeOpen;
 			}
 
-			// make sure closing tag parent non-root element is formatted as well
+			// make sure closing tag of parent non-root element is formatted as well
 			if (isLastChild(node) && !isRoot(node.parent)) {
 				const parentFormat = getFormat(node.parent);
 				parentFormat.beforeClose = parentFormat.newline + parentFormat.indent;
@@ -104,25 +108,45 @@ function shouldFormatNode(node, profile) {
  * @return {Boolean}
  */
 function shouldFormatInline(node, profile) {
-	if (!profile.options.inlineBreak || !isInline(node, profile)) {
+	if (!isInline(node, profile)) {
 		return false;
 	}
 
-	// check for adjacent inline elements before and after current element
-	const siblings = node.parent.children;
-	const ix = siblings.indexOf(node);
-	let adjacentInline = 1;
-	let before = ix, after = ix;
+    if (node.isTextOnly && node.children.length) {
+        return true;
+    }
 
-	while (isInline(siblings[--before], profile)) {
-		adjacentInline++;
-	}
+    // check if inline node is the next sibling of block-level node
+    if (node.childIndex === 0) {
+        // first node in parent: format if it’s followed by a block-level element
+        let next = node;
+        while (next = next.nextSibling) {
+            if (!isInline(next, profile)) {
+                return true;
+            }
+        }
+    } else if (!isInline(node.previousSibling, profile)) {
+        // node is right after block-level element
+        return true;
+    }
 
-	while (isInline(siblings[++after], profile)) {
-		adjacentInline++;
-	}
+    if (profile.options.inlineBreak) {
+        // check for adjacent inline elements before and after current element
+        let adjacentInline = 1;
+        let before = node, after = node;
 
-	return adjacentInline >= profile.options.inlineBreak;
+        while (isInlineElement((before = before.previousSibling), profile)) {
+            adjacentInline++;
+        }
+
+        while (isInlineElement((after = after.nextSibling), profile)) {
+            adjacentInline++;
+        }
+
+        return adjacentInline >= profile.options.inlineBreak;
+    }
+
+    return false;
 }
 
 /**
@@ -138,7 +162,6 @@ function formatAttribute(attr, profile, fieldState) {
 	}
 
 	const attrName = profile.attribute(attr.name);
-
 	return `${attrName}=${profile.quote(formatText(attr.value, profile, fieldState))}`;
 }
 
@@ -155,9 +178,22 @@ function formatText(text, profile, fieldState) {
 		return profile.field(fieldState.index++);
 	}
 
-	let largestIndex = -1;
-	const model = parseFields(text);
-	model.fields.forEach(field => {
+	const model = getFieldsModel(text, fieldState);
+	return model.mark((index, placeholder) => profile.field(index, placeholder));
+}
+
+/**
+ * Returns fields (tab-stops) model with properly updated indices that won’t
+ * collide with fields in other nodes of foprmatted tree
+ * @param  {String|Object} text Text to get fields model from or model itself
+ * @param  {Object} fieldState Abbreviation tree-wide field state reference
+ * @return {Object} Field model
+ */
+function getFieldsModel(text, fieldState) {
+	const model = typeof text === 'object' ? text : parseFields(text);
+    let largestIndex = -1;
+
+    model.fields.forEach(field => {
 		field.index += fieldState.index;
 		if (field.index > largestIndex) {
 			largestIndex = field.index;
@@ -168,11 +204,28 @@ function formatText(text, profile, fieldState) {
 		fieldState.index = largestIndex + 1;
 	}
 
-	return model.mark((index, placeholder) => profile.field(index, placeholder));
+    return model;
 }
 
+/**
+ * Check if given node is inline-level
+ * @param  {Node}  node
+ * @param  {Profile}  profile
+ * @return {Boolean}
+ */
 function isInline(node, profile) {
 	return node && (node.isTextOnly || profile.isInline(node));
+}
+
+/**
+ * Check if given node is inline-level element, e.g. element with explicitly
+ * defined node name
+ * @param  {Node}  node
+ * @param  {Profile}  profile
+ * @return {Boolean}
+ */
+function isInlineElement(node, profile) {
+	return node && profile.isInline(node);
 }
 
 /**
@@ -190,8 +243,7 @@ function isFirstChild(node) {
  * @return {Boolean}
  */
 function isLastChild(node) {
-	const nodes = node.parent.children;
-	return nodes[nodes.length - 1] === node;
+	return node.parent.lastChild === node;
 }
 
 /**

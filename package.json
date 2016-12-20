@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/emmetio/markup-formatters#readme",
   "devDependencies": {
-    "@emmetio/abbreviation": "^0.4.5",
+    "@emmetio/abbreviation": "^0.4.6",
     "@emmetio/output-profile": "^0.1.0",
     "@emmetio/variable-resolver": "^0.1.1",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.18.0",
