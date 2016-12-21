@@ -48,5 +48,8 @@ describe('HTML formatter', () => {
         assert.equal(expand('div>{foo}+{bar}+p'), '<div>\n\tfoobar\n\t<p></p>\n</div>');
         assert.equal(expand('div>{foo}+{bar}+p+{foo}+{bar}+p'), '<div>\n\tfoobar\n\t<p></p>\n\tfoobar\n\t<p></p>\n</div>');
         assert.equal(expand('div>{foo}>p'), '<div>\n\tfoo\n\t<p></p>\n</div>');
+
+		assert.equal(expand('div>{<!-- ${0} -->}>p'), '<div>\n\t<!-- <p></p> -->\n</div>');
+		assert.equal(expand('div>{<!-- ${0} -->}>p*2'), '<div>\n\t<!-- \n\t<p></p>\n\t<p></p>\n -->\n</div>');
 	});
 });

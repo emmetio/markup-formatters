@@ -22,17 +22,38 @@ export default function(tree, profile) {
             return next();
         }
 
-        const format = formats.get(node);
+		let open, close, text;
+		if (node.isTextOnly) {
+			// Edge case: text-only node with contents in it: treat it like a
+			// pseudo-snippet: if possible, insert contents into field with
+			// lowest index
+			const fieldsModel = getFieldsModel(node.value, fieldState);
+			const field = findLowestIndexField(fieldsModel);
+			const marker = (index, placeholder) => profile.field(index, placeholder);
+			if (field) {
+				const parts = splitFieldsModel(fieldsModel, field);
+				open = parts[0].mark(marker);
+				close = parts[1].mark(marker);
+			} else {
+				text = fieldsModel.mark(marker);
+			}
+		} else {
+			text = formatText(node.value, profile, fieldState);
+			if (node.name) {
+				const attrs = node.attributes
+				.map(attr => formatAttribute(attr, profile, fieldState))
+				.filter(Boolean)
+				.join(' ');
 
-        const attrs = node.attributes
-		.map(attr => formatAttribute(attr, profile, fieldState))
-		.filter(Boolean)
-		.join(' ');
+				open = `<${node.name}${attrs ? ' ' + attrs : ''}${profile.selfClose()}>`;
+				if (!node.selfClosing) {
+					close = `</${node.name}>`;
+				}
+			}
+		}
 
-        return format.open(node.name ? `<${node.name}${attrs ? ' ' + attrs : ''}${profile.selfClose()}>` : '')
-            + format.text(formatText(node.value, profile, fieldState))
-            + next()
-            + (node.name && !node.selfClosing ? format.close(`</${node.name}>`) : '');
+		const format = formats.get(node);
+        return format.open(open) + format.text(text) + next() + format.close(close);
 	});
 }
 
@@ -253,4 +274,36 @@ function isLastChild(node) {
  */
 function isRoot(node) {
 	return node && !node.parent;
+}
+
+/**
+ * Finds field with lowest index in given text
+ * @param  {String|Object} text
+ * @return {Object}
+ */
+function findLowestIndexField(text) {
+	const model = typeof text === 'string' ? parseFields(text) : text;
+	return model.fields.reduce((result, field) =>
+		!result || field.index < result.index ? field : result
+		, null);
+}
+
+/**
+ * Splits given fields model in two parts by given field
+ * @param  {Object} model
+ * @param  {Object} field
+ * @return {Array} Two-items array
+ */
+function splitFieldsModel(model, field) {
+	const ix = model.fields.indexOf(field);
+	const left = Object.assign({}, model, {
+		string: model.string.slice(0, field.location),
+		fields: model.fields.slice(0, ix)
+	});
+	const right = Object.assign({}, model, {
+		string: model.string.slice(field.location + field.length),
+		fields: model.fields.slice(ix + 1)
+	});
+
+	return [left, right];
 }
