@@ -4,11 +4,9 @@ const Profile = require('@emmetio/output-profile');
 const replaceVariables = require('@emmetio/variable-resolver');
 require('babel-register');
 const html = require('../format/html').default;
-const html2 = require('../format/html2').default;
 
 describe('HTML formatter', () => {
-    const expand = (abbr, profile) => html2(replaceVariables(parse(abbr)), profile || new Profile());
-    // const expand = (abbr, profile) => html2(replaceVariables(parse(abbr)), profile || new Profile());
+    const expand = (abbr, profile) => html(replaceVariables(parse(abbr)), profile || new Profile());
 
     it('basic', () => {
         assert.equal(expand('div>p'), '<div>\n\t<p></p>\n</div>');
@@ -21,6 +19,8 @@ describe('HTML formatter', () => {
 
     it('inline elements', () => {
         const profile = new Profile({inlineBreak: 3});
+        const xhtml = new Profile({selfClosingStyle: 'xhtml'});
+
         assert.equal(expand('p>i', profile), '<p><i></i></p>');
         assert.equal(expand('p>i*2', profile), '<p><i></i><i></i></p>');
         assert.equal(expand('p>i*3', profile), '<p>\n\t<i></i>\n\t<i></i>\n\t<i></i>\n</p>');
@@ -29,7 +29,12 @@ describe('HTML formatter', () => {
         assert.equal(expand('i*3', profile), '<i></i>\n<i></i>\n<i></i>');
         assert.equal(expand('i{a}+i{b}', profile), '<i>a</i><i>b</i>');
 
-        assert.equal(expand('img[src]/+p', profile), '<img src="">\n<p></p>');
+        assert.equal(expand('img[src]/+p', xhtml), '<img src="" />\n<p></p>');
+        assert.equal(expand('div>img[src]/+p', xhtml), '<div>\n\t<img src="" />\n\t<p></p>\n</div>');
+        assert.equal(expand('div>p+img[src]/', xhtml), '<div>\n\t<p></p>\n\t<img src="" />\n</div>');
+        assert.equal(expand('div>p+img[src]/+p', xhtml), '<div>\n\t<p></p>\n\t<img src="" />\n\t<p></p>\n</div>');
+        assert.equal(expand('div>p+img[src]/*2+p', xhtml), '<div>\n\t<p></p>\n\t<img src="" /><img src="" />\n\t<p></p>\n</div>');
+        assert.equal(expand('div>p+img[src]/*3+p', xhtml), '<div>\n\t<p></p>\n\t<img src="" />\n\t<img src="" />\n\t<img src="" />\n\t<p></p>\n</div>');
     });
 
     it('generate fields', () => {
@@ -49,7 +54,33 @@ describe('HTML formatter', () => {
         assert.equal(expand('div>{foo}+{bar}+p+{foo}+{bar}+p'), '<div>\n\tfoobar\n\t<p></p>\n\tfoobar\n\t<p></p>\n</div>');
         assert.equal(expand('div>{foo}>p'), '<div>\n\tfoo\n\t<p></p>\n</div>');
 
+        assert.equal(expand('div>{<!-- ${0} -->}'), '<div><!--  --></div>');
+		assert.equal(expand('div>{<!-- ${0} -->}+p'), '<div>\n\t<!--  -->\n\t<p></p>\n</div>');
+		assert.equal(expand('div>p+{<!-- ${0} -->}'), '<div>\n\t<p></p>\n\t<!--  -->\n</div>');
 		assert.equal(expand('div>{<!-- ${0} -->}>p'), '<div>\n\t<!-- <p></p> -->\n</div>');
-		assert.equal(expand('div>{<!-- ${0} -->}>p*2'), '<div>\n\t<!-- \n\t<p></p>\n\t<p></p>\n -->\n</div>');
+        assert.equal(expand('div>{<!-- ${0} -->}*2>p'), '<div>\n\t<!-- <p></p> -->\n\t<!-- <p></p> -->\n</div>');
+
+		assert.equal(expand('div>{<!-- ${0} -->}>p*2'), '<div>\n\t<!-- \n\t<p></p>\n\t<p></p>\n\t-->\n</div>');
+		assert.equal(expand('div>{<!-- ${0} -->}*2>p*2'), '<div>\n\t<!-- \n\t<p></p>\n\t<p></p>\n\t-->\n\t<!-- \n\t<p></p>\n\t<p></p>\n\t-->\n</div>');
+
+        assert.equal(expand('div>{<!-- ${0} -->}>b'), '<div>\n\t<!-- <b></b> -->\n</div>');
+        assert.equal(expand('div>{<!-- ${0} -->}>b*2'), '<div>\n\t<!-- <b></b><b></b> -->\n</div>');
+        assert.equal(expand('div>{<!-- ${0} -->}>b*3'), '<div>\n\t<!-- \n\t<b></b>\n\t<b></b>\n\t<b></b>\n\t-->\n</div>');
 	});
+
+    it('self-closing', () => {
+        const xml   = new Profile({selfClosingStyle: 'xml'});
+        const html  = new Profile({selfClosingStyle: 'html'});
+        const xhtml = new Profile({selfClosingStyle: 'xhtml'});
+
+        assert.equal(expand('img[src]/', html), '<img src="">');
+        assert.equal(expand('img[src]/', xhtml), '<img src="" />');
+        assert.equal(expand('img[src]/', xml), '<img src=""/>');
+
+        assert.equal(expand('div>img[src]/', xhtml), '<div><img src="" /></div>');
+    });
+
+    it.skip('no formatting', () => {
+
+    });
 });

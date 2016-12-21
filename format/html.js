@@ -4,92 +4,181 @@ import parseFields from '@emmetio/field-parser';
 import output from '../lib/output-builder';
 import Format from '../lib/format';
 
-/**
- * Outputs given parsed abbreviation as HTML
- * @param {Node} tree Parsed abbreviation tree
- * @param {Profile} Output profile (@see @emmetio/output-profile)
- * @return {String}
- */
 export default function(tree, profile) {
 	// Each node may contain fields like `${1:placeholder}`.
 	// Since most modern editors will link all fields with the same
-	// index, we have to ensure that different nodes has their on indicies.
-	// We’ll use this `field` object to globally increment field indices
+	// index, we have to ensure that different nodes has their own indicies.
+	// We’ll use this `fieldState` object to globally increment field indices
 	// during output
 	const fieldState = { index: 1 };
 
-	return output(tree, (node, level, next) => {
-        if (node.isTextOnly) {
-            return formatText(node.value, profile, fieldState) + next();
-        }
+	// Output formatting made of two steps:
+	// 1. Walk on tree and get `Format` object for each tree node
+	// 2. Walk on tree again to output each node with its own format
+	const formats = getTreeFormat(tree, profile);
 
+	return output(tree, (node, level, next) => {
         if (node.isGroup) {
             return next();
         }
 
-        const f = getFormat(node, level, profile);
-        const attrs = node.attributes
-		.map(attr => formatAttribute(attr, profile, fieldState))
-		.filter(Boolean)
-		.join(' ');
+		let open, close, text;
+		if (node.isTextOnly && node.children.length) {
+			// Edge case: text-only node with contents in it: treat it like a
+			// pseudo-snippet: if possible, insert contents into field with
+			// lowest index
+			const fieldsModel = getFieldsModel(node.value, fieldState);
+			const field = findLowestIndexField(fieldsModel);
+			const marker = (index, placeholder) => profile.field(index, placeholder);
+			if (field) {
+				const parts = splitFieldsModel(fieldsModel, field);
+				open = parts[0].mark(marker);
+				close = parts[1].mark(marker);
+			} else {
+				text = fieldsModel.mark(marker);
+			}
+		} else {
+			if (node.name) {
+				const attrs = node.attributes
+				.map(attr => formatAttribute(attr, profile, fieldState))
+				.filter(Boolean)
+				.join(' ');
 
-        return f.open(`<${node.name}${attrs ? ' ' + attrs : ''}${profile.selfClose()}>`)
-            + f.text(formatText(node.value, profile, fieldState))
-            + next()
-            + f.close(!node.selfClosing ? `</${node.name}>` : '');
+				open = `<${node.name}${attrs ? ' ' + attrs : ''}${node.selfClosing ? profile.selfClose() : ''}>`;
+				if (!node.selfClosing) {
+					close = `</${node.name}>`;
+				}
+			}
+            text = formatText(node.value, profile, fieldState);
+		}
+
+		const format = formats.get(node);
+        return format.open(open) + format.text(text) + next() + format.close(close);
 	});
-};
+}
 
 /**
- * Get formatting options for given node
+ * Returns format objects for every node in given tree
+ * @param {Node} tree
+ * @param {Profile} profile
+ * @return {Map} Key is a tree node, value is a format object
+ */
+function getTreeFormat(tree, profile) {
+	const formats = new Map();
+	const getFormat = node => {
+		if (!formats.has(node)) {
+			formats.set(node, new Format());
+		}
+		return formats.get(node);
+	};
+
+	tree.walk((node, level) => {
+        // decrease indent level:
+        // * if parent node is a text-only node
+        // * if current node name is explicitly set to decrease level
+        const nodeName = (node.name || '').toLowerCase();
+        if (level && (node.parent.isTextOnly || profile.options.formatSkip.has(nodeName))) {
+            level--;
+        }
+
+		const format = getFormat(node);
+		format.indent = profile.indent(level);
+		format.newline = '\n';
+
+		if (shouldFormatNode(node, profile)) {
+			format.beforeOpen = format.newline + format.indent;
+            if (node.isTextOnly) {
+                format.beforeText = format.beforeOpen;
+            }
+
+			// if it’s a first child of parent node, make sure parent node
+			// contains formatting for its text value
+			if (isFirstChild(node) && !node.parent.isTextOnly && node.parent.value) {
+				const parentFormat = getFormat(node.parent);
+				parentFormat.afterOpen = format.beforeOpen;
+			}
+
+			// make sure closing tag of parent non-root element is formatted as well
+			if (isLastChild(node) && !isRoot(node.parent)) {
+				const parentFormat = getFormat(node.parent);
+				parentFormat.beforeClose = parentFormat.newline + parentFormat.indent;
+			}
+		}
+	});
+
+	return formats;
+}
+
+/**
+ * Check if given node should be formatted
  * @param  {Node} node
  * @param  {Profile} profile
- * @return {Format}
+ * @return {Boolean}
  */
-function getFormat(node, level, profile) {
-	const popt = profile.options;
-	const format = new Format();
-
-	if (!popt.format) {
-		return format;
+function shouldFormatNode(node, profile) {
+	if (isFirstChild(node) && isRoot(node.parent)) {
+		// do not format the very first node in output
+		return false;
 	}
 
-	const nl = '\n';
-	const nodeName = node.name || '';
-	const indentLevel = popt.formatSkip.has(nodeName.toLowerCase()) ? 0 : level;
-	format.indent = profile.indent(indentLevel);
-	format.newline = nl;
+    if (node.parent.isTextOnly
+        && node.parent.children.length === 1
+        && parseFields(node.parent.value).fields.length) {
+        // Edge case: do not format the only child of text-only node,
+        // but only if parent contains fields
+        return false;
+    }
 
-	if (popt.formatTagNewline !== false) {
-		let forceNl = popt.formatTagNewline === true
-			&& (popt.formatTagNewlineLeaf || node.children.length);
+	return isInline(node, profile) ? shouldFormatInline(node, profile) : true;
+}
 
-		if (!forceNl) {
-			forceNl = popt.formatForce.has(nodeName);
-		}
-
-		// formatting block-level elements
-		if (shouldAddLineBreakBefore(node, profile)) {
-			// do not indent the very first element
-			if (!isVeryFirstChild(node)) {
-				format.beforeOpen = nl + format.indent;
-			}
-
-			if (shouldBreakChild(node, profile) || (forceNl && !node.selfClosing)) {
-				format.beforeClose = nl + format.indent;
-			}
-
-			if (forceNl && !item.children.length && !node.selfClosing) {
-				item.afterOpen = nl + format.indent;
-			}
-		} else if (profile.isInline(node) && hasBlockSibling(node, profile) && !isVeryFirstChild(node)) {
-			item.beforeOpen = nl;
-		} else if (profile.isInline(node) && shouldBreakInsideInline(node, profile)) {
-			item.beforeClose = nl;
-		}
+/**
+ * Check if given inline node should be formatted as well, e.g. it contains
+ * enough adjacent siblings that should force formatting
+ * @param  {Node} node
+ * @param  {Profile} profile
+ * @return {Boolean}
+ */
+function shouldFormatInline(node, profile) {
+	if (!isInline(node, profile)) {
+		return false;
 	}
 
-    return format;
+    if (node.isTextOnly && node.children.length) {
+        return true;
+    }
+
+    // check if inline node is the next sibling of block-level node
+    if (node.childIndex === 0) {
+        // first node in parent: format if it’s followed by a block-level element
+        let next = node;
+        while (next = next.nextSibling) {
+            if (!isInline(next, profile)) {
+                return true;
+            }
+        }
+    } else if (!isInline(node.previousSibling, profile)) {
+        // node is right after block-level element
+        return true;
+    }
+
+    if (profile.options.inlineBreak) {
+        // check for adjacent inline elements before and after current element
+        let adjacentInline = 1;
+        let before = node, after = node;
+
+        while (isInlineElement((before = before.previousSibling), profile)) {
+            adjacentInline++;
+        }
+
+        while (isInlineElement((after = after.nextSibling), profile)) {
+            adjacentInline++;
+        }
+
+        return adjacentInline >= profile.options.inlineBreak;
+    }
+
+    return false;
 }
 
 /**
@@ -105,7 +194,6 @@ function formatAttribute(attr, profile, fieldState) {
 	}
 
 	const attrName = profile.attribute(attr.name);
-
 	return `${attrName}=${profile.quote(formatText(attr.value, profile, fieldState))}`;
 }
 
@@ -122,9 +210,22 @@ function formatText(text, profile, fieldState) {
 		return profile.field(fieldState.index++);
 	}
 
-	let largestIndex = -1;
-	const model = parseFields(text);
-	model.fields.forEach(field => {
+	const model = getFieldsModel(text, fieldState);
+	return model.mark((index, placeholder) => profile.field(index, placeholder));
+}
+
+/**
+ * Returns fields (tab-stops) model with properly updated indices that won’t
+ * collide with fields in other nodes of foprmatted tree
+ * @param  {String|Object} text Text to get fields model from or model itself
+ * @param  {Object} fieldState Abbreviation tree-wide field state reference
+ * @return {Object} Field model
+ */
+function getFieldsModel(text, fieldState) {
+	const model = typeof text === 'object' ? text : parseFields(text);
+    let largestIndex = -1;
+
+    model.fields.forEach(field => {
 		field.index += fieldState.index;
 		if (field.index > largestIndex) {
 			largestIndex = field.index;
@@ -135,88 +236,46 @@ function formatText(text, profile, fieldState) {
 		fieldState.index = largestIndex + 1;
 	}
 
-	return model.mark((index, placeholder) => profile.field(index, placeholder));
+    return model;
 }
 
 /**
- * Check if given node has block-level sibling element
- * @param {Node} node Abbreviation node
- * @param {Profile} profile Output profile
+ * Check if given node is inline-level
+ * @param  {Node}  node
+ * @param  {Profile}  profile
  * @return {Boolean}
  */
-function hasBlockSibling(node, profile) {
-	return node.parent && hasBlockChildren(node.parent, profile);
+function isInline(node, profile) {
+	return (node && node.isTextOnly) || isInlineElement(node, profile);
 }
 
 /**
- * Check if given node contains block-level children
- * @param  {Node}     node    Abbreviation node
- * @param  {Profile}  profile Output profile
+ * Check if given node is inline-level element, e.g. element with explicitly
+ * defined node name
+ * @param  {Node}  node
+ * @param  {Profile}  profile
  * @return {Boolean}
  */
-function hasBlockChildren(node, profile) {
-	return node.children.some(child => !profile.isInline(child));
+function isInlineElement(node, profile) {
+	return node && profile.isInline(node);
 }
 
 /**
- * Check if given node is a very first child in parsed tree
- * @param  {Node} node
+ * Check if given node is a first child in its parent
+ * @param  {Node}  node
  * @return {Boolean}
  */
-function isVeryFirstChild(node) {
-	return isRoot(node.parent) && node.parent.firstChild === node;
+function isFirstChild(node) {
+	return node.parent.firstChild === node;
 }
 
 /**
- * Check if a newline should be added before given node
- * @param {Node} node
- * @param {Profile} profile
+ * Check if given node is a last child in its parent node
+ * @param  {Node}  node
  * @return {Boolean}
  */
-function shouldAddLineBreakBefore(node, profile) {
-	if (isRoot(node) || !profile.options.inlineBreak) {
-		return false;
-	}
-
-	if (profile.options.formatTagNewline === true || !profile.isInline(node)) {
-		return true;
-	}
-
-	// check if there are required amount of adjacent inline element
-	return shouldFormatInline(node.parent, profile);
-}
-
-/**
- * Add newline because `node` has too many inline children
- * @param {Node} node
- * @param {Profile} profile
- */
-function shouldBreakChild(node, profile) {
-	// we need to test only one child element, because
-	// hasBlockChildren() method will do the rest
-	return node.children.length && (
-		hasBlockChildren(node, profile)
-		|| shouldAddLineBreakBefore(node.firstChild, profile)
-	);
-}
-
-/**
- * Check if we should format inline elements inside given node
- * @param  {Node} node
- * @param  {Profile} profile
- * @return {Boolean}
- */
-function shouldFormatInline(node, profile) {
-	let inlineSiblings = 0;
-	return node.children.some(child => {
-		if (child.isTextOnly || !profile.isInline(child)) {
-			inlineSiblings = 0;
-		} else if (profile.isInline(child)) {
-			inlineSiblings++;
-		}
-
-		return inlineSiblings >= profile.options.inlineBreak;
-	});
+function isLastChild(node) {
+	return node.parent.lastChild === node;
 }
 
 /**
@@ -229,11 +288,33 @@ function isRoot(node) {
 }
 
 /**
- * Check if we should add line breaks inside inline element
- * @param {AbbreviationNode} node
- * @param {Profile} profile
- * @return {Boolean}
+ * Finds field with lowest index in given text
+ * @param  {String|Object} text
+ * @return {Object}
  */
-function shouldBreakInsideInline(node, profile) {
-	return hasBlockChildren(node, profile) || shouldFormatInline(node, profile);
+function findLowestIndexField(text) {
+	const model = typeof text === 'string' ? parseFields(text) : text;
+	return model.fields.reduce((result, field) =>
+		!result || field.index < result.index ? field : result
+		, null);
+}
+
+/**
+ * Splits given fields model in two parts by given field
+ * @param  {Object} model
+ * @param  {Object} field
+ * @return {Array} Two-items array
+ */
+function splitFieldsModel(model, field) {
+	const ix = model.fields.indexOf(field);
+	const left = Object.assign({}, model, {
+		string: model.string.slice(0, field.location),
+		fields: model.fields.slice(0, ix)
+	});
+	const right = Object.assign({}, model, {
+		string: model.string.slice(field.location + field.length),
+		fields: model.fields.slice(ix + 1)
+	});
+
+	return [left, right];
 }
