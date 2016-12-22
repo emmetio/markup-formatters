@@ -77,7 +77,7 @@ function getTreeFormat(tree, profile) {
         // * if parent node is a text-only node
         // * if current node name is explicitly set to decrease level
         const nodeName = (node.name || '').toLowerCase();
-        if (level && (node.parent.isTextOnly || profile.options.formatSkip.has(nodeName))) {
+        if (level && (node.parent.isTextOnly || profile.get('formatSkip').has(nodeName))) {
             level--;
         }
 
@@ -116,6 +116,11 @@ function getTreeFormat(tree, profile) {
  * @return {Boolean}
  */
 function shouldFormatNode(node, profile) {
+	if (!profile.get('format')) {
+		// do not format the very first node in output
+		return false;
+	}
+
 	if (isFirstChild(node) && isRoot(node.parent)) {
 		// do not format the very first node in output
 		return false;
@@ -162,7 +167,7 @@ function shouldFormatInline(node, profile) {
         return true;
     }
 
-    if (profile.options.inlineBreak) {
+    if (profile.get('inlineBreak')) {
         // check for adjacent inline elements before and after current element
         let adjacentInline = 1;
         let before = node, after = node;
@@ -175,7 +180,7 @@ function shouldFormatInline(node, profile) {
             adjacentInline++;
         }
 
-        return adjacentInline >= profile.options.inlineBreak;
+        return adjacentInline >= profile.get('inlineBreak');
     }
 
     return false;
@@ -194,7 +199,16 @@ function formatAttribute(attr, profile, fieldState) {
 	}
 
 	const attrName = profile.attribute(attr.name);
-	return `${attrName}=${profile.quote(formatText(attr.value, profile, fieldState))}`;
+	let attrValue = formatText(attr.value, profile, fieldState);
+	if (attr.options.boolean || profile.get('booleanAttributes').has(attrName.toLowerCase())) {
+		if (profile.get('compactBooleanAttributes') && attr.value == null) {
+			return attrName;
+		} else if (attr.value == null) {
+			attrValue = attrName;
+		}
+	}
+
+	return `${attrName}=${profile.quote(attrValue)}`;
 }
 
 /**

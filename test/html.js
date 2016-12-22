@@ -19,11 +19,15 @@ describe('HTML formatter', () => {
 
     it('inline elements', () => {
         const profile = new Profile({inlineBreak: 3});
+        const breakInline = new Profile({inlineBreak: 1});
+        const keepInline = new Profile({inlineBreak: 0});
         const xhtml = new Profile({selfClosingStyle: 'xhtml'});
 
         assert.equal(expand('p>i', profile), '<p><i></i></p>');
         assert.equal(expand('p>i*2', profile), '<p><i></i><i></i></p>');
+        assert.equal(expand('p>i*2', breakInline), '<p>\n\t<i></i>\n\t<i></i>\n</p>');
         assert.equal(expand('p>i*3', profile), '<p>\n\t<i></i>\n\t<i></i>\n\t<i></i>\n</p>');
+        assert.equal(expand('p>i*3', keepInline), '<p><i></i><i></i><i></i></p>');
 
         assert.equal(expand('i*2', profile), '<i></i><i></i>');
         assert.equal(expand('i*3', profile), '<i></i>\n<i></i>\n<i></i>');
@@ -52,7 +56,8 @@ describe('HTML formatter', () => {
         assert.equal(expand('div>{foo}+{bar}'), '<div>foobar</div>');
         assert.equal(expand('div>{foo}+{bar}+p'), '<div>\n\tfoobar\n\t<p></p>\n</div>');
         assert.equal(expand('div>{foo}+{bar}+p+{foo}+{bar}+p'), '<div>\n\tfoobar\n\t<p></p>\n\tfoobar\n\t<p></p>\n</div>');
-        assert.equal(expand('div>{foo}>p'), '<div>\n\tfoo\n\t<p></p>\n</div>');
+		assert.equal(expand('div>{foo}+p+{bar}'), '<div>\n\tfoo\n\t<p></p>\n\tbar\n</div>');
+		assert.equal(expand('div>{foo}>p'), '<div>\n\tfoo\n\t<p></p>\n</div>');
 
         assert.equal(expand('div>{<!-- ${0} -->}'), '<div><!--  --></div>');
 		assert.equal(expand('div>{<!-- ${0} -->}+p'), '<div>\n\t<!--  -->\n\t<p></p>\n</div>');
@@ -80,7 +85,21 @@ describe('HTML formatter', () => {
         assert.equal(expand('div>img[src]/', xhtml), '<div><img src="" /></div>');
     });
 
-    it.skip('no formatting', () => {
+	it('boolean attributes', () => {
+		const compact = new Profile({compactBooleanAttributes: true});
+		const noCompact = new Profile({compactBooleanAttributes: false});
+		assert.equal(expand('a[b.]', noCompact), '<a b="b"></a>');
+		assert.equal(expand('a[b.]', compact), '<a b></a>');
+		assert.equal(expand('a[contenteditable]', compact), '<a contenteditable></a>');
+		assert.equal(expand('a[contenteditable]', noCompact), '<a contenteditable="contenteditable"></a>');
+		assert.equal(expand('a[contenteditable=foo]', compact), '<a contenteditable="foo"></a>');
+    });
 
+    it('no formatting', () => {
+		const profile = new Profile({format: false});
+		assert.equal(expand('div>p', profile), '<div><p></p></div>');
+		assert.equal(expand('div>{foo}+p+{bar}', profile), '<div>foo<p></p>bar</div>');
+		assert.equal(expand('div>{foo}>p', profile), '<div>foo<p></p></div>');
+		assert.equal(expand('div>{<!-- ${0} -->}>p', profile), '<div><!-- <p></p> --></div>');
     });
 });
