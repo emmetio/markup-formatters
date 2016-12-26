@@ -199,7 +199,8 @@ function shouldFormatInline(node, profile) {
  * @return {Boolean}
  */
 function shouldForceFormat(node, profile) {
-	return node && node.name && profile.get('formatForce').includes(node.name.toLowerCase());
+	return node && node.name
+		&& profile.get('formatForce').indexOf(node.name.toLowerCase()) !== -1;
 }
 
 /**
@@ -216,7 +217,7 @@ function formatAttribute(attr, profile, fieldState) {
 
 	const attrName = profile.attribute(attr.name);
 	let attrValue = formatText(attr.value, profile, fieldState);
-	if (attr.options.boolean || profile.get('booleanAttributes').has(attrName.toLowerCase())) {
+	if (attr.options.boolean || profile.get('booleanAttributes').indexOf(attrName.toLowerCase()) !== -1) {
 		if (profile.get('compactBooleanAttributes') && attr.value == null) {
 			return attrName;
 		} else if (attr.value == null) {
@@ -368,7 +369,7 @@ function getIndentLevel(node, profile, level) {
 	let ctx = node;
 	const skip = profile.get('formatSkip');
 	while (ctx = ctx.parent) {
-		if (skip.includes( (ctx.name || '').toLowerCase() )) {
+		if (skip.indexOf( (ctx.name || '').toLowerCase() ) !== -1) {
 			level--;
 		}
 	}
