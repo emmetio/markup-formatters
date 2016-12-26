@@ -51,8 +51,9 @@ export default function(tree, profile) {
 			}
 
 			let nodeValue = node.value;
-			if (nodeValue == null && node.children.length) {
-				// Do not generate fields for nodes with empty value and children
+			// Do not generate fields for nodes with empty value and children
+			// or if node is self-closed
+			if (nodeValue == null && (node.children.length || node.selfClosing)) {
 				nodeValue = '';
 			}
 
@@ -80,16 +81,9 @@ function getTreeFormat(tree, profile) {
 	};
 
 	tree.walk((node, level) => {
-        // decrease indent level:
-        // * if parent node is a text-only node
-        // * if current node name is explicitly set to decrease level
-        const nodeName = (node.name || '').toLowerCase();
-        if (level && (node.parent.isTextOnly || profile.get('formatSkip').has(nodeName))) {
-            level--;
-        }
-
 		const format = getFormat(node);
-		format.indent = profile.indent(level);
+		const fLevel = getIndentLevel(node, profile, level);
+		format.indent = profile.indent(fLevel);
 		format.newline = '\n';
 
 		if (shouldFormatNode(node, profile)) {
@@ -97,6 +91,11 @@ function getTreeFormat(tree, profile) {
             if (node.isTextOnly) {
                 format.beforeText = format.beforeOpen;
             }
+
+			if (shouldForceFormat(node, profile)) {
+				format.afterOpen = format.newline + profile.indent(fLevel + 1);
+				format.beforeClose = format.newline + format.indent;
+			}
 
 			// if it’s a first child of parent node, make sure parent node
 			// contains formatting for its text value
@@ -191,6 +190,16 @@ function shouldFormatInline(node, profile) {
     }
 
     return false;
+}
+
+/**
+ * Check if given node should have forced inner formatting
+ * @param  {Node} node
+ * @param  {Profile} profile
+ * @return {Boolean}
+ */
+function shouldForceFormat(node, profile) {
+	return node && node.name && profile.get('formatForce').includes(node.name.toLowerCase());
 }
 
 /**
@@ -338,4 +347,31 @@ function splitFieldsModel(model, field) {
 	});
 
 	return [left, right];
+}
+
+/**
+ * Computes indent level for given node
+ * @param  {Node} node
+ * @param  {Profile} profile
+ * @param  {Number} level
+ * @return {Number}
+ */
+function getIndentLevel(node, profile, level) {
+	level = level || 0;
+	// decrease indent level if:
+	// * parent node is a text-only node
+	// * there’s a parent node with a name that is explicitly set to decrease level
+	if (node.parent.isTextOnly) {
+		level--;
+	}
+
+	let ctx = node;
+	const skip = profile.get('formatSkip');
+	while (ctx = ctx.parent) {
+		if (skip.includes( (ctx.name || '').toLowerCase() )) {
+			level--;
+		}
+	}
+
+	return level < 0 ? 0 : level;
 }
