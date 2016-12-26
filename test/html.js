@@ -48,9 +48,13 @@ describe('HTML formatter', () => {
 
 		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2', profile), '${1} ${2:foo} ${3:bar}${4} ${5:foo} ${6:bar}');
 		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2'), ' foo bar foo bar');
+
+        assert.equal(expand('ul>li*2', profile), '<ul>\n\t<li>${1}</li>\n\t<li>${2}</li>\n</ul>');
 	});
 
 	it('mixed content', () => {
+        const fp = new Profile({field: (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`});
+
         assert.equal(expand('div{foo}'), '<div>foo</div>');
         assert.equal(expand('div>{foo}'), '<div>foo</div>');
         assert.equal(expand('div>{foo}+{bar}'), '<div>foobar</div>');
@@ -71,6 +75,9 @@ describe('HTML formatter', () => {
         assert.equal(expand('div>{<!-- ${0} -->}>b'), '<div>\n\t<!-- <b></b> -->\n</div>');
         assert.equal(expand('div>{<!-- ${0} -->}>b*2'), '<div>\n\t<!-- <b></b><b></b> -->\n</div>');
         assert.equal(expand('div>{<!-- ${0} -->}>b*3'), '<div>\n\t<!-- \n\t<b></b>\n\t<b></b>\n\t<b></b>\n\t-->\n</div>');
+
+        assert.equal(expand('div>{<!-- ${0} -->}', fp), '<div><!-- ${1} --></div>');
+        assert.equal(expand('div>{<!-- ${0} -->}>b', fp), '<div>\n\t<!-- <b>${1}</b> -->\n</div>');
 	});
 
     it('self-closing', () => {

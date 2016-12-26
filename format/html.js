@@ -27,15 +27,15 @@ export default function(tree, profile) {
 			// Edge case: text-only node with contents in it: treat it like a
 			// pseudo-snippet: if possible, insert contents into field with
 			// lowest index
-			const fieldsModel = getFieldsModel(node.value, fieldState);
+			const fieldsModel = parseFields(node.value);
 			const field = findLowestIndexField(fieldsModel);
 			const marker = (index, placeholder) => profile.field(index, placeholder);
 			if (field) {
 				const parts = splitFieldsModel(fieldsModel, field);
-				open = parts[0].mark(marker);
-				close = parts[1].mark(marker);
+				open = getFieldsModel(parts[0], fieldState).mark(marker);
+				close = getFieldsModel(parts[1], fieldState).mark(marker);
 			} else {
-				text = fieldsModel.mark(marker);
+				text = getFieldsModel(fieldsModel, fieldState).mark(marker);
 			}
 		} else {
 			if (node.name) {
@@ -49,7 +49,14 @@ export default function(tree, profile) {
 					close = `</${node.name}>`;
 				}
 			}
-            text = formatText(node.value, profile, fieldState);
+
+			let nodeValue = node.value;
+			if (nodeValue == null && node.children.length) {
+				// Do not generate fields for nodes with empty value and children
+				nodeValue = '';
+			}
+
+            text = formatText(nodeValue, profile, fieldState);
 		}
 
 		const format = formats.get(node);
@@ -220,7 +227,7 @@ function formatAttribute(attr, profile, fieldState) {
  * @return {String}
  */
 function formatText(text, profile, fieldState) {
-	if (text == null || text === '') {
+	if (text == null) {
 		return profile.field(fieldState.index++);
 	}
 
