@@ -3,8 +3,21 @@
 import parseFields from '@emmetio/field-parser';
 import output from '../lib/output-builder';
 import Format from '../lib/format';
+import OutputNode from '../lib/output-node';
 
-export default function(tree, profile) {
+/**
+ * Outputs given parsed Emmet abbreviation as HTML, formatted according to
+ * `profile` options
+ * @param  {Node}     tree           Parsed Emmet abbreviation
+ * @param  {Profile}  profile        Output profile
+ * @param  {Function} [postProcess]  A post-processor for generated output node
+ * that applies various transformations on it to shape-up a final output.
+ * A post-processor is a function that takes `OutputNode` as first argument and
+ * `Profile` as second and returns updated or new output node.
+ * If it returns `null` – node will not be outputted
+ * @return {String}
+ */
+export default function(tree, profile, postProcess) {
 	// Each node may contain fields like `${1:placeholder}`.
 	// Since most modern editors will link all fields with the same
 	// index, we have to ensure that different nodes has their own indicies.
@@ -22,31 +35,33 @@ export default function(tree, profile) {
             return next();
         }
 
-		let open, close, text;
+		let outNode = new OutputNode(node, formats.get(node));
+
 		if (node.isTextOnly && node.children.length) {
 			// Edge case: text-only node with contents in it: treat it like a
-			// pseudo-snippet: if possible, insert contents into field with
+			// pseudo-snippet. If possible, insert contents into field with
 			// lowest index
 			const fieldsModel = parseFields(node.value);
 			const field = findLowestIndexField(fieldsModel);
 			const marker = (index, placeholder) => profile.field(index, placeholder);
 			if (field) {
 				const parts = splitFieldsModel(fieldsModel, field);
-				open = getFieldsModel(parts[0], fieldState).mark(marker);
-				close = getFieldsModel(parts[1], fieldState).mark(marker);
+				outNode.open = getFieldsModel(parts[0], fieldState).mark(marker);
+				outNode.close = getFieldsModel(parts[1], fieldState).mark(marker);
 			} else {
-				text = getFieldsModel(fieldsModel, fieldState).mark(marker);
+				outNode.text = getFieldsModel(fieldsModel, fieldState).mark(marker);
 			}
 		} else {
 			if (node.name) {
+				const nodeName = profile.name(node.name);
 				const attrs = node.attributes
 				.map(attr => formatAttribute(attr, profile, fieldState))
 				.filter(Boolean)
 				.join(' ');
 
-				open = `<${node.name}${attrs ? ' ' + attrs : ''}${node.selfClosing ? profile.selfClose() : ''}>`;
+				outNode.open = `<${nodeName}${attrs ? ' ' + attrs : ''}${node.selfClosing ? profile.selfClose() : ''}>`;
 				if (!node.selfClosing) {
-					close = `</${node.name}>`;
+					outNode.close = `</${nodeName}>`;
 				}
 			}
 
@@ -57,11 +72,14 @@ export default function(tree, profile) {
 				nodeValue = '';
 			}
 
-            text = formatText(nodeValue, profile, fieldState);
+            outNode.text = formatText(nodeValue, profile, fieldState);
 		}
 
-		const format = formats.get(node);
-        return format.open(open) + format.text(text) + next() + format.close(close);
+		if (typeof postProcess === 'function') {
+			outNode = postProcess(outNode, profile);
+		}
+
+        return outNode ? outNode.toString(next()) : '';
 	});
 }
 
