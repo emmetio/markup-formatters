@@ -4,6 +4,7 @@ import parseFields from '@emmetio/field-parser';
 import output from '../lib/output-builder';
 import Format from '../lib/format';
 import OutputNode from '../lib/output-node';
+import { formatText, handlePseudoSnippet, isFirstChild, isLastChild, isRoot } from '../lib/utils';
 
 /**
  * Outputs given parsed Emmet abbreviation as HTML, formatted according to
@@ -37,21 +38,7 @@ export default function(tree, profile, postProcess) {
 
 		let outNode = new OutputNode(node, formats.get(node));
 
-		if (node.isTextOnly && node.children.length) {
-			// Edge case: text-only node with contents in it: treat it like a
-			// pseudo-snippet. If possible, insert contents into field with
-			// lowest index
-			const fieldsModel = parseFields(node.value);
-			const field = findLowestIndexField(fieldsModel);
-			const marker = (index, placeholder) => profile.field(index, placeholder);
-			if (field) {
-				const parts = splitFieldsModel(fieldsModel, field);
-				outNode.open = getFieldsModel(parts[0], fieldState).mark(marker);
-				outNode.close = getFieldsModel(parts[1], fieldState).mark(marker);
-			} else {
-				outNode.text = getFieldsModel(fieldsModel, fieldState).mark(marker);
-			}
-		} else {
+		if (!handlePseudoSnippet(outNode, profile, fieldState)) {
 			if (node.name) {
 				const nodeName = profile.name(node.name);
 				const attrs = node.attributes
@@ -234,7 +221,7 @@ function formatAttribute(attr, profile, fieldState) {
 	}
 
 	const attrName = profile.attribute(attr.name);
-	let attrValue = formatText(attr.value, profile, fieldState);
+	let attrValue = null;
 	if (attr.options.boolean || profile.get('booleanAttributes').indexOf(attrName.toLowerCase()) !== -1) {
 		if (profile.get('compactBooleanAttributes') && attr.value == null) {
 			return attrName;
@@ -243,49 +230,11 @@ function formatAttribute(attr, profile, fieldState) {
 		}
 	}
 
+	if (attrValue == null) {
+		attrValue = formatText(attr.value, profile, fieldState);
+	}
+
 	return `${attrName}=${profile.quote(attrValue)}`;
-}
-
-/**
- * Formats given text: parses fields and outputs them according to profile
- * preferences
- * @param  {String} text
- * @param  {Profile} profile
- * @param  {Object} field
- * @return {String}
- */
-function formatText(text, profile, fieldState) {
-	if (text == null) {
-		return profile.field(fieldState.index++);
-	}
-
-	const model = getFieldsModel(text, fieldState);
-	return model.mark((index, placeholder) => profile.field(index, placeholder));
-}
-
-/**
- * Returns fields (tab-stops) model with properly updated indices that won’t
- * collide with fields in other nodes of foprmatted tree
- * @param  {String|Object} text Text to get fields model from or model itself
- * @param  {Object} fieldState Abbreviation tree-wide field state reference
- * @return {Object} Field model
- */
-function getFieldsModel(text, fieldState) {
-	const model = typeof text === 'object' ? text : parseFields(text);
-    let largestIndex = -1;
-
-    model.fields.forEach(field => {
-		field.index += fieldState.index;
-		if (field.index > largestIndex) {
-			largestIndex = field.index;
-		}
-	});
-
-	if (largestIndex !== -1) {
-		fieldState.index = largestIndex + 1;
-	}
-
-    return model;
 }
 
 /**
@@ -307,65 +256,6 @@ function isInline(node, profile) {
  */
 function isInlineElement(node, profile) {
 	return node && profile.isInline(node);
-}
-
-/**
- * Check if given node is a first child in its parent
- * @param  {Node}  node
- * @return {Boolean}
- */
-function isFirstChild(node) {
-	return node.parent.firstChild === node;
-}
-
-/**
- * Check if given node is a last child in its parent node
- * @param  {Node}  node
- * @return {Boolean}
- */
-function isLastChild(node) {
-	return node.parent.lastChild === node;
-}
-
-/**
- * Check if given node is a root node
- * @param  {Node}  node
- * @return {Boolean}
- */
-function isRoot(node) {
-	return node && !node.parent;
-}
-
-/**
- * Finds field with lowest index in given text
- * @param  {String|Object} text
- * @return {Object}
- */
-function findLowestIndexField(text) {
-	const model = typeof text === 'string' ? parseFields(text) : text;
-	return model.fields.reduce((result, field) =>
-		!result || field.index < result.index ? field : result
-		, null);
-}
-
-/**
- * Splits given fields model in two parts by given field
- * @param  {Object} model
- * @param  {Object} field
- * @return {Array} Two-items array
- */
-function splitFieldsModel(model, field) {
-	const ix = model.fields.indexOf(field);
-	const left = Object.assign({}, model, {
-		string: model.string.slice(0, field.location),
-		fields: model.fields.slice(0, ix)
-	});
-	const right = Object.assign({}, model, {
-		string: model.string.slice(field.location + field.length),
-		fields: model.fields.slice(ix + 1)
-	});
-
-	return [left, right];
 }
 
 /**
