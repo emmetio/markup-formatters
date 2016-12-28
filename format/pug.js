@@ -3,7 +3,13 @@
 import output from '../lib/output-builder';
 import Format from '../lib/format';
 import OutputNode from '../lib/output-node';
-import { formatText, handlePseudoSnippet, isFirstChild, isLastChild, isRoot } from '../lib/utils';
+import { formatText, splitByLines, handlePseudoSnippet, isFirstChild, isLastChild, isRoot } from '../lib/utils';
+
+const reOmitName = /^div$/i;
+const reId = /^id$/i;
+const reClass = /^class$/i;
+const reNl = /\n|\r/;
+const braceCode = 40; // code for '(' symbol
 
 /**
  * Outputs given parsed Emmet abbreviation as Pug (Jade), formatted according to
@@ -39,16 +45,13 @@ export default function(tree, profile, postProcess) {
 
 		if (!handlePseudoSnippet(outNode, profile, fieldState)) {
 			if (node.name) {
+				const attrs = formatAttributes(node, profile, fieldState);
 				const nodeName = profile.name(node.name);
-				const attrs = node.attributes
-				.map(attr => formatAttribute(attr, profile, fieldState))
-				.filter(Boolean)
-				.join(' ');
+				// omit tag name if node has primary attributes only
+				// NB use `.charCodeAt(0)` instead of `[0]` to reduce string allocations
+				const canOmitName = attrs && attrs.charCodeAt(0) !== braceCode && reOmitName.test(nodeName);
 
-				outNode.open = `<${nodeName}${attrs ? ' ' + attrs : ''}${node.selfClosing ? profile.selfClose() : ''}>`;
-				if (!node.selfClosing) {
-					outNode.close = `</${nodeName}>`;
-				}
+				outNode.open = (canOmitName ? '' : nodeName) + attrs;
 			}
 
 			let nodeValue = node.value;
@@ -56,6 +59,13 @@ export default function(tree, profile, postProcess) {
 			// or if node is self-closed
 			if (nodeValue == null && (node.children.length || node.selfClosing)) {
 				nodeValue = '';
+			}
+
+			// For multiline text we should precede each line with `| `.
+			// Also indent one-level deep
+			if (reNl.test(nodeValue)) {
+				const indent = profile.indent(1);
+				nodeValue = splitByLines(nodeValue).map(line => `${indent}| ${line}`).join('\n');
 			}
 
             outNode.text = formatText(nodeValue, profile, fieldState);
@@ -67,7 +77,6 @@ export default function(tree, profile, postProcess) {
 
         return outNode ? outNode.toString(next()) : '';
 	});
-}
 };
 
 /**
@@ -95,16 +104,14 @@ function getTreeFormat(tree, profile) {
 
 		if (shouldFormatNode(node, profile)) {
 			format.beforeOpen = format.newline + format.indent;
-            if (node.isTextOnly) {
-                format.beforeText = format.beforeOpen;
-            }
+		}
 
-			// if it’s a first child of parent node, make sure parent node
-			// contains formatting for its text value
-			if (isFirstChild(node) && !node.parent.isTextOnly && node.parent.value) {
-				const parentFormat = getFormat(node.parent);
-				parentFormat.afterOpen = format.beforeOpen;
-			}
+		if (!node.isTextOnly && node.value) {
+			// node with text: put a space before single-line text,
+			// indent for multi-line text
+			format.beforeText = reNl.test(node.value)
+				? format.newline + profile.indent(fLevel + 1)
+				: ' ';
 		}
 	});
 
@@ -146,18 +153,16 @@ function formatAttributes(node, profile, fieldState) {
 	node.attributes.forEach(attr => {
 		const name = profile.attribute(attr.name);
 		const value = formatText(attr.value, profile, fieldState);
-		const isBoolean = attr.value == null
-			&& (attr.options.boolean || profile.get('booleanAttributes').indexOf(attrName.toLowerCase()) !== -1);
 
-		switch (name.toLowerCase()) {
-			case 'id':
-				primary.push(`#${value}`);
-				break;
-			case 'class':
-				primary.push(`.${value.replace(/\s+/g, '.')}`);
-				break;
-			default:
-				secondary.push(isBoolean ? name `${name}=${profile.quote(value)}`);
+		if (reId.test(name)) {
+			primary.push(`#${value}`);
+		} else if (reClass.test(name)) {
+			primary.push(`.${value.replace(/\s+/g, '.')}`);
+		} else {
+			const isBoolean = attr.value == null
+				&& (attr.options.boolean || profile.get('booleanAttributes').indexOf(name.toLowerCase()) !== -1);
+
+			secondary.push(isBoolean ? name : `${name}=${profile.quote(value)}`);
 		}
 	});
 
