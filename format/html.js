@@ -4,7 +4,7 @@ import parseFields from '@emmetio/field-parser';
 import output from '../lib/output-builder';
 import Format from '../lib/format';
 import OutputNode from '../lib/output-node';
-import { formatText, handlePseudoSnippet, isFirstChild, isLastChild, isRoot } from '../lib/utils';
+import { handlePseudoSnippet, isFirstChild, isRoot, isPseudoSnippet } from '../lib/utils';
 
 /**
  * Outputs given parsed Emmet abbreviation as HTML, formatted according to
@@ -18,106 +18,64 @@ import { formatText, handlePseudoSnippet, isFirstChild, isLastChild, isRoot } fr
  * If it returns `null` – node will not be outputted
  * @return {String}
  */
-export default function(tree, profile, postProcess) {
-	// Each node may contain fields like `${1:placeholder}`.
-	// Since most modern editors will link all fields with the same
-	// index, we have to ensure that different nodes has their own indicies.
-	// We’ll use this `fieldState` object to globally increment field indices
-	// during output
-	const fieldState = { index: 1 };
+export default function(tree, profile, field) {
+	return output(tree, field, (node, level, renderFields, next) => {
+		let outNode = new OutputNode(node, getFormat(node, level, profile));
 
-	// Output formatting made of two steps:
-	// 1. Walk on tree and get `Format` object for each tree node
-	// 2. Walk on tree again to output each node with its own format
-	const formats = getTreeFormat(tree, profile);
-
-	return output(tree, (node, level, next) => {
-        if (node.isGroup) {
-            return next();
-        }
-
-		let outNode = new OutputNode(node, formats.get(node));
-
-		if (!handlePseudoSnippet(outNode, profile, fieldState)) {
+		if (!handlePseudoSnippet(outNode, renderFields)) {
 			if (node.name) {
-				const nodeName = profile.name(node.name);
-				const attrs = node.attributes
-				.map(attr => formatAttribute(attr, profile, fieldState))
-				.filter(Boolean)
-				.join(' ');
+				const name = profile.name(node.name);
+				const attrs = formatAttributes(node, profile, renderFields);
 
-				outNode.open = `<${nodeName}${attrs ? ' ' + attrs : ''}${node.selfClosing ? profile.selfClose() : ''}>`;
+				outNode.open = `<${name}${attrs}${node.selfClosing ? profile.selfClose() : ''}>`;
 				if (!node.selfClosing) {
-					outNode.close = `</${nodeName}>`;
+					outNode.close = `</${name}>`;
 				}
 			}
 
-			let nodeValue = node.value;
 			// Do not generate fields for nodes with empty value and children
 			// or if node is self-closed
-			if (nodeValue == null && (node.children.length || node.selfClosing)) {
-				nodeValue = '';
-			}
-
-            outNode.text = formatText(nodeValue, profile, fieldState);
+            if (node.value || (!node.children.length && !node.selfClosing) ) {
+                outNode.text = renderFields(node.value);
+            }
 		}
 
-		if (typeof postProcess === 'function') {
-			outNode = postProcess(outNode, profile);
-		}
-
-        return outNode ? outNode.toString(next()) : '';
+        return outNode.toString(next());
 	});
 }
 
 /**
- * Returns format objects for every node in given tree
- * @param {Node} tree
- * @param {Profile} profile
- * @return {Map} Key is a tree node, value is a format object
+ * Returns formatter object for given abbreviation node
+ * @param  {Node}    node    Parsed abbreviation node
+ * @param  {Number}  level   Node’s depth level in its tree
+ * @param  {Profile} profile Output profile
+ * @return {Format}
  */
-function getTreeFormat(tree, profile) {
-	const formats = new Map();
-	const getFormat = node => {
-		if (!formats.has(node)) {
-			formats.set(node, new Format());
-		}
-		return formats.get(node);
-	};
+function getFormat(node, level, profile) {
+    const format = new Format();
 
-	tree.walk((node, level) => {
-		const format = getFormat(node);
-		const fLevel = getIndentLevel(node, profile, level);
-		format.indent = profile.indent(fLevel);
-		format.newline = '\n';
+    if (shouldFormatNode(node, profile)) {
+        format.indent = profile.indent(getIndentLevel(node, profile, level));
+        format.newline = '\n';
+        const prefix = format.newline + format.indent;
 
-		if (shouldFormatNode(node, profile)) {
-			format.beforeOpen = format.newline + format.indent;
+        // do not format the very first node in output
+        if (!isRoot(node.parent) || !isFirstChild(node)) {
+            format.beforeOpen = prefix;
             if (node.isTextOnly) {
-                format.beforeText = format.beforeOpen;
+                format.beforeText = prefix;
             }
+        }
 
-			if (shouldForceFormat(node, profile)) {
-				format.afterOpen = format.newline + profile.indent(fLevel + 1);
-				format.beforeClose = format.newline + format.indent;
-			}
+        if (hasInnerFormatting(node, profile)) {
+            if (!node.isTextOnly) {
+                format.beforeText = prefix + profile.indent(1);
+            }
+            format.beforeClose = prefix;
+        }
+    }
 
-			// if it’s a first child of parent node, make sure parent node
-			// contains formatting for its text value
-			if (isFirstChild(node) && !node.parent.isTextOnly && node.parent.value) {
-				const parentFormat = getFormat(node.parent);
-				parentFormat.afterOpen = format.beforeOpen;
-			}
-
-			// make sure closing tag of parent non-root element is formatted as well
-			if (isLastChild(node) && !isRoot(node.parent)) {
-				const parentFormat = getFormat(node.parent);
-				parentFormat.beforeClose = parentFormat.newline + parentFormat.indent;
-			}
-		}
-	});
-
-	return formats;
+    return format;
 }
 
 /**
@@ -128,12 +86,6 @@ function getTreeFormat(tree, profile) {
  */
 function shouldFormatNode(node, profile) {
 	if (!profile.get('format')) {
-		// do not format the very first node in output
-		return false;
-	}
-
-	if (isFirstChild(node) && isRoot(node.parent)) {
-		// do not format the very first node in output
 		return false;
 	}
 
@@ -160,7 +112,7 @@ function shouldFormatInline(node, profile) {
 		return false;
 	}
 
-    if (node.isTextOnly && node.children.length) {
+    if (isPseudoSnippet(node)) {
         return true;
     }
 
@@ -198,43 +150,61 @@ function shouldFormatInline(node, profile) {
 }
 
 /**
- * Check if given node should have forced inner formatting
+ * Check if given node contains inner formatting, e.g. any of its children should
+ * be formatted
  * @param  {Node} node
  * @param  {Profile} profile
  * @return {Boolean}
  */
-function shouldForceFormat(node, profile) {
-	return node && node.name
-		&& profile.get('formatForce').indexOf(node.name.toLowerCase()) !== -1;
+function hasInnerFormatting(node, profile) {
+    // check if node if forced for inner formatting
+    const nodeName = (node.name || '').toLowerCase();
+    if (profile.get('formatForce').indexOf(nodeName) !== -1) {
+        return true;
+    }
+
+    // check if any of children should receive formatting
+    // NB don’t use `childrent.some()` to reduce memory allocations
+    for (let i = 0; i < node.children.length; i++) {
+        if (shouldFormatNode(node.children[i], profile)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
- * Formats given attribute
- * @param  {Attribute} attr
+ * Outputs attributes of given abbreviation node as HTML attributes
+ * @param  {Node} node
  * @param  {Profile} profile
- * @param  {Object} fieldState
+ * @param  {Function} renderFields
  * @return {String}
  */
-function formatAttribute(attr, profile, fieldState) {
-	if (attr.options.implied && attr.value == null) {
-		return null;
-	}
+function formatAttributes(node, profile, renderFields) {
+    return node.attributes.map(attr => {
+        if (attr.options.implied && attr.value == null) {
+    		return null;
+    	}
 
-	const attrName = profile.attribute(attr.name);
-	let attrValue = null;
-	if (attr.options.boolean || profile.get('booleanAttributes').indexOf(attrName.toLowerCase()) !== -1) {
-		if (profile.get('compactBooleanAttributes') && attr.value == null) {
-			return attrName;
-		} else if (attr.value == null) {
-			attrValue = attrName;
-		}
-	}
+    	const attrName = profile.attribute(attr.name);
+    	let attrValue = null;
 
-	if (attrValue == null) {
-		attrValue = formatText(attr.value, profile, fieldState);
-	}
+        // handle boolean attributes
+    	if (attr.options.boolean || profile.get('booleanAttributes').indexOf(attrName.toLowerCase()) !== -1) {
+    		if (profile.get('compactBooleanAttributes') && attr.value == null) {
+    			return ` ${attrName}`;
+    		} else if (attr.value == null) {
+    			attrValue = attrName;
+    		}
+    	}
 
-	return `${attrName}=${profile.quote(attrValue)}`;
+    	if (attrValue == null) {
+    		attrValue = renderFields(attr.value);
+    	}
+
+    	return ` ${attrName}=${profile.quote(attrValue)}`;
+    }).join('');
 }
 
 /**
@@ -267,6 +237,7 @@ function isInlineElement(node, profile) {
  */
 function getIndentLevel(node, profile, level) {
 	level = level || 0;
+
 	// decrease indent level if:
 	// * parent node is a text-only node
 	// * there’s a parent node with a name that is explicitly set to decrease level

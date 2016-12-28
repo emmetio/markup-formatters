@@ -6,7 +6,15 @@ require('babel-register');
 const html = require('../format/html').default;
 
 describe('HTML formatter', () => {
-    const expand = (abbr, profile) => html(replaceVariables(parse(abbr)), profile || new Profile());
+    const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
+    const expand = (abbr, profile, field) => {
+        if (typeof profile === 'function') {
+            field = profile;
+            profile = null;
+        }
+
+        return html(replaceVariables(parse(abbr)), profile || new Profile(), field);
+    };
 
     it('basic', () => {
         assert.equal(expand('div>p'), '<div>\n\t<p></p>\n</div>');
@@ -42,16 +50,15 @@ describe('HTML formatter', () => {
     });
 
     it('generate fields', () => {
-		const profile = new Profile({field: (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`});
-		assert.equal(expand('a[href]', profile), '<a href="${1}">${2}</a>');
-		assert.equal(expand('a[href]*2', profile), '<a href="${1}">${2}</a><a href="${3}">${4}</a>');
+		assert.equal(expand('a[href]', field), '<a href="${1}">${2}</a>');
+		assert.equal(expand('a[href]*2', field), '<a href="${1}">${2}</a><a href="${3}">${4}</a>');
 
-		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2', profile), '${1} ${2:foo} ${3:bar}${4} ${5:foo} ${6:bar}');
+		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2', field), '${1} ${2:foo} ${3:bar}${4} ${5:foo} ${6:bar}');
 		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2'), ' foo bar foo bar');
 
-        assert.equal(expand('ul>li*2', profile), '<ul>\n\t<li>${1}</li>\n\t<li>${2}</li>\n</ul>');
+        assert.equal(expand('ul>li*2', field), '<ul>\n\t<li>${1}</li>\n\t<li>${2}</li>\n</ul>');
 
-		assert.equal(expand('div>img[src]/', profile), '<div><img src="${1}"></div>');
+		assert.equal(expand('div>img[src]/', field), '<div><img src="${1}"></div>');
 	});
 
 	it('mixed content', () => {
@@ -76,9 +83,8 @@ describe('HTML formatter', () => {
         assert.equal(expand('div>{<!-- ${0} -->}>b*2'), '<div>\n\t<!-- <b></b><b></b> -->\n</div>');
         assert.equal(expand('div>{<!-- ${0} -->}>b*3'), '<div>\n\t<!-- \n\t<b></b>\n\t<b></b>\n\t<b></b>\n\t-->\n</div>');
 
-		const fp = new Profile({field: (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`});
-        assert.equal(expand('div>{<!-- ${0} -->}', fp), '<div><!-- ${1} --></div>');
-        assert.equal(expand('div>{<!-- ${0} -->}>b', fp), '<div>\n\t<!-- <b>${1}</b> -->\n</div>');
+        assert.equal(expand('div>{<!-- ${0} -->}', field), '<div><!-- ${1} --></div>');
+        assert.equal(expand('div>{<!-- ${0} -->}>b', field), '<div>\n\t<!-- <b>${1}</b> -->\n</div>');
 	});
 
     it('self-closing', () => {
@@ -112,8 +118,7 @@ describe('HTML formatter', () => {
     });
 
 	it('format specific nodes', () => {
-		const fp = new Profile({field: (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`});
-		assert.equal(expand('{<!DOCTYPE html>}+html>(head>meta[charset=${charset}]/+title{${1:Document}})+body', fp),
+		assert.equal(expand('{<!DOCTYPE html>}+html>(head>meta[charset=${charset}]/+title{${1:Document}})+body', field),
 			'<!DOCTYPE html>\n<html>\n<head>\n\t<meta charset="charset">\n\t<title>${2:Document}</title>\n</head>\n<body>\n\t${3}\n</body>\n</html>');
 	});
 });

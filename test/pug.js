@@ -6,7 +6,15 @@ require('babel-register');
 const pug = require('../format/pug').default;
 
 describe('Pug formatter', () => {
-    const expand = (abbr, profile) => pug(replaceVariables(parse(abbr)), profile || new Profile());
+    const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
+    const expand = (abbr, profile, field) => {
+        if (typeof profile === 'function') {
+            field = profile;
+            profile = null;
+        }
+
+        return pug(replaceVariables(parse(abbr)), profile || new Profile(), field);
+    };
 
     it('basic', () => {
 		assert.equal(expand('div#header>ul.nav>li[title=test].nav-item*2'),
@@ -27,15 +35,14 @@ describe('Pug formatter', () => {
 	});
 
 	it('generate fields', () => {
-		const profile = new Profile({field: (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`});
-		assert.equal(expand('a[href]', profile), 'a(href="${1}")${2}');
-		assert.equal(expand('a[href]*2', profile), 'a(href="${1}")${2}\na(href="${3}")${4}');
+		assert.equal(expand('a[href]', field), 'a(href="${1}")${2}');
+		assert.equal(expand('a[href]*2', field), 'a(href="${1}")${2}\na(href="${3}")${4}');
 
-		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2', profile), '${1} ${2:foo} ${3:bar}${4} ${5:foo} ${6:bar}');
+		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2', field), '${1} ${2:foo} ${3:bar}${4} ${5:foo} ${6:bar}');
 		assert.equal(expand('{${0} ${1:foo} ${2:bar}}*2'), ' foo bar foo bar');
 
-        assert.equal(expand('ul>li*2', profile), 'ul\n\tli${1}\n\tli${2}');
+        assert.equal(expand('ul>li*2', field), 'ul\n\tli${1}\n\tli${2}');
 
-		assert.equal(expand('div>img[src]/', profile), 'div\n\timg(src="${1}")');
+		assert.equal(expand('div>img[src]/', field), 'div\n\timg(src="${1}")');
 	});
 });

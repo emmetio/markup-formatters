@@ -3,7 +3,7 @@
 import output from '../lib/output-builder';
 import Format from '../lib/format';
 import OutputNode from '../lib/output-node';
-import { formatText, splitByLines, handlePseudoSnippet, isFirstChild, isLastChild, isRoot } from '../lib/utils';
+import { splitByLines, handlePseudoSnippet, isFirstChild, isRoot } from '../lib/utils';
 
 const reOmitName = /^div$/i;
 const reId = /^id$/i;
@@ -23,38 +23,23 @@ const braceCode = 40; // code for '(' symbol
  * If it returns `null` – node will not be outputted
  * @return {String}
  */
-export default function(tree, profile, postProcess) {
-	// Each node may contain fields like `${1:placeholder}`.
-	// Since most modern editors will link all fields with the same
-	// index, we have to ensure that different nodes has their own indicies.
-	// We’ll use this `fieldState` object to globally increment field indices
-	// during output
-	const fieldState = { index: 1 };
+export default function(tree, profile, field) {
+	return output(tree, field, (node, level, renderFields, next) => {
+		let outNode = new OutputNode(node, getFormat(node, level, profile));
 
-	// Output formatting made of two steps:
-	// 1. Walk on tree and get `Format` object for each tree node
-	// 2. Walk on tree again to output each node with its own format
-	const formats = getTreeFormat(tree, profile);
-
-	return output(tree, (node, level, next) => {
-        if (node.isGroup) {
-            return next();
-        }
-
-		let outNode = new OutputNode(node, formats.get(node));
-
-		if (!handlePseudoSnippet(outNode, profile, fieldState)) {
+		if (!handlePseudoSnippet(outNode, renderFields)) {
 			if (node.name) {
-				const attrs = formatAttributes(node, profile, fieldState);
-				const nodeName = profile.name(node.name);
+                const name = profile.name(node.name);
+				const attrs = formatAttributes(node, profile, renderFields);
 				// omit tag name if node has primary attributes only
 				// NB use `.charCodeAt(0)` instead of `[0]` to reduce string allocations
-				const canOmitName = attrs && attrs.charCodeAt(0) !== braceCode && reOmitName.test(nodeName);
+				const canOmitName = attrs && attrs.charCodeAt(0) !== braceCode && reOmitName.test(name);
 
-				outNode.open = (canOmitName ? '' : nodeName) + attrs;
+				outNode.open = (canOmitName ? '' : name) + attrs;
 			}
 
 			let nodeValue = node.value;
+
 			// Do not generate fields for nodes with empty value and children
 			// or if node is self-closed
 			if (nodeValue == null && (node.children.length || node.selfClosing)) {
@@ -68,54 +53,39 @@ export default function(tree, profile, postProcess) {
 				nodeValue = splitByLines(nodeValue).map(line => `${indent}| ${line}`).join('\n');
 			}
 
-            outNode.text = formatText(nodeValue, profile, fieldState);
+            outNode.text = renderFields(nodeValue);
 		}
 
-		if (typeof postProcess === 'function') {
-			outNode = postProcess(outNode, profile);
-		}
-
-        return outNode ? outNode.toString(next()) : '';
+        return outNode.toString(next());
 	});
 };
 
 /**
- * Returns format objects for every node in given tree
+ * Returns format object for given abbreviation node
  * NB Unlike HTML, Pug is indent-based format so some formatting options from
  * `profile` will not take effect, otherwise output will be broken
- * @param {Node} tree
+ * @param {Node} node
  * @param {Profile} profile
  * @return {Map} Key is a tree node, value is a format object
  */
-function getTreeFormat(tree, profile) {
-	const formats = new Map();
-	const getFormat = node => {
-		if (!formats.has(node)) {
-			formats.set(node, new Format());
-		}
-		return formats.get(node);
-	};
+function getFormat(node, level, profile) {
+    const format = new Format();
+    format.indent = profile.indent(getIndentLevel(node, profile, level));
+    format.newline = '\n';
+    const prefix = format.newline + format.indent;
 
-	tree.walk((node, level) => {
-		const format = getFormat(node);
-		const fLevel = getIndentLevel(node, profile, level);
-		format.indent = profile.indent(fLevel);
-		format.newline = '\n';
+    // do not format the very first node in output
+    if (!isRoot(node.parent) || !isFirstChild(node)) {
+        format.beforeOpen = prefix;
+    }
 
-		if (shouldFormatNode(node, profile)) {
-			format.beforeOpen = format.newline + format.indent;
-		}
+    if (!node.isTextOnly && node.value) {
+        // node with text: put a space before single-line text,
+        // indent for multi-line text
+        format.beforeText = reNl.test(node.value) ? prefix + profile.indent(1) : ' ';
+    }
 
-		if (!node.isTextOnly && node.value) {
-			// node with text: put a space before single-line text,
-			// indent for multi-line text
-			format.beforeText = reNl.test(node.value)
-				? format.newline + profile.indent(fLevel + 1)
-				: ' ';
-		}
-	});
-
-	return formats;
+	return format;
 }
 
 /**
@@ -130,29 +100,22 @@ function getIndentLevel(node, profile, level) {
 }
 
 /**
- * Check if given node should be formatted
- * @param  {Node} node
- * @param  {Profile} profile
- * @return {Boolean}
- */
-function shouldFormatNode(node, profile) {
-	// do not format the very first node in output
-	return !(isFirstChild(node) && isRoot(node.parent));
-}
-
-/**
  * Formats attributes of given node
  * @param  {Node} node
  * @param  {Profile} profile
- * @param  {Object} fieldState
+ * @param  {Function} renderFields
  * @return {String}
  */
-function formatAttributes(node, profile, fieldState) {
+function formatAttributes(node, profile, renderFields) {
 	const primary = [], secondary = [];
 
 	node.attributes.forEach(attr => {
+		if (attr.options.implied && attr.value == null) {
+			return null;
+		}
+
 		const name = profile.attribute(attr.name);
-		const value = formatText(attr.value, profile, fieldState);
+		const value = renderFields(attr.value);
 
 		if (reId.test(name)) {
 			primary.push(`#${value}`);
