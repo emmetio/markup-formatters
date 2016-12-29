@@ -1,28 +1,26 @@
 'use strict';
 
 import parseFields from '@emmetio/field-parser';
-import output from '../lib/output-builder';
-import Format from '../lib/format';
-import OutputNode from '../lib/output-node';
+import render from '../lib/render';
 import { handlePseudoSnippet, isFirstChild, isRoot, isPseudoSnippet } from '../lib/utils';
 
 /**
- * Outputs given parsed Emmet abbreviation as HTML, formatted according to
+ * Renders given parsed Emmet abbreviation as HTML, formatted according to
  * `profile` options
- * @param  {Node}     tree           Parsed Emmet abbreviation
- * @param  {Profile}  profile        Output profile
- * @param  {Function} [postProcess]  A post-processor for generated output node
- * that applies various transformations on it to shape-up a final output.
- * A post-processor is a function that takes `OutputNode` as first argument and
- * `Profile` as second and returns updated or new output node.
- * If it returns `null` – node will not be outputted
+ * @param  {Node}     tree    Parsed Emmet abbreviation
+ * @param  {Profile}  profile Output profile
+ * @param  {Object}  [options] Additional formatter options
  * @return {String}
  */
-export default function(tree, profile, field) {
-	return output(tree, field, (node, level, renderFields, next) => {
-		let outNode = new OutputNode(node, getFormat(node, level, profile));
+export default function html(tree, profile, options) {
+	options = options || {};
+
+	return render(tree, options.field, (outNode, renderFields) => {
+		outNode = setFormatting(outNode, profile);
 
 		if (!handlePseudoSnippet(outNode, renderFields)) {
+			const node = outNode.node;
+
 			if (node.name) {
 				const name = profile.name(node.name);
 				const attrs = formatAttributes(node, profile, renderFields);
@@ -35,47 +33,46 @@ export default function(tree, profile, field) {
 
 			// Do not generate fields for nodes with empty value and children
 			// or if node is self-closed
-            if (node.value || (!node.children.length && !node.selfClosing) ) {
-                outNode.text = renderFields(node.value);
-            }
+			if (node.value || (!node.children.length && !node.selfClosing) ) {
+				outNode.text = renderFields(node.value);
+			}
 		}
 
-        return outNode.toString(next());
+		return outNode;
 	});
 }
 
 /**
- * Returns formatter object for given abbreviation node
- * @param  {Node}    node    Parsed abbreviation node
- * @param  {Number}  level   Node’s depth level in its tree
- * @param  {Profile} profile Output profile
- * @return {Format}
+ * Updates formatting properties for given output node
+ * @param  {OutputNode} outNode Output wrapper of farsed abbreviation node
+ * @param  {Profile}    profile Output profile
+ * @return {OutputNode}
  */
-function getFormat(node, level, profile) {
-    const format = new Format();
+function setFormatting(outNode, profile) {
+	const node = outNode.node;
 
     if (shouldFormatNode(node, profile)) {
-        format.indent = profile.indent(getIndentLevel(node, profile, level));
-        format.newline = '\n';
-        const prefix = format.newline + format.indent;
+        outNode.indent = profile.indent(getIndentLevel(node, profile));
+        outNode.newline = '\n';
+        const prefix = outNode.newline + outNode.indent;
 
         // do not format the very first node in output
         if (!isRoot(node.parent) || !isFirstChild(node)) {
-            format.beforeOpen = prefix;
+            outNode.beforeOpen = prefix;
             if (node.isTextOnly) {
-                format.beforeText = prefix;
+                outNode.beforeText = prefix;
             }
         }
 
         if (hasInnerFormatting(node, profile)) {
             if (!node.isTextOnly) {
-                format.beforeText = prefix + profile.indent(1);
+                outNode.beforeText = prefix + profile.indent(1);
             }
-            format.beforeClose = prefix;
+            outNode.beforeClose = prefix;
         }
     }
 
-    return format;
+    return outNode;
 }
 
 /**
@@ -235,21 +232,16 @@ function isInlineElement(node, profile) {
  * @param  {Number} level
  * @return {Number}
  */
-function getIndentLevel(node, profile, level) {
-	level = level || 0;
-
-	// decrease indent level if:
-	// * parent node is a text-only node
+function getIndentLevel(node, profile) {
+	// Increase indent level IF NOT:
+	// * parent is text-only node
 	// * there’s a parent node with a name that is explicitly set to decrease level
-	if (node.parent.isTextOnly) {
-		level--;
-	}
-
+	const skip = profile.get('formatSkip') || [];
+	let level = node.parent.isTextOnly ? -2 : -1;
 	let ctx = node;
-	const skip = profile.get('formatSkip');
 	while (ctx = ctx.parent) {
-		if (skip.indexOf( (ctx.name || '').toLowerCase() ) !== -1) {
-			level--;
+		if (skip.indexOf( (ctx.name || '').toLowerCase() ) === -1) {
+			level++;
 		}
 	}
 

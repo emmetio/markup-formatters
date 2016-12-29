@@ -7,13 +7,13 @@ const html = require('../format/html').default;
 
 describe('HTML formatter', () => {
     const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
-    const expand = (abbr, profile, field) => {
+    const expand = (abbr, profile, options) => {
         if (typeof profile === 'function') {
-            field = profile;
+            options = { field: profile };
             profile = null;
         }
 
-        return html(replaceVariables(parse(abbr)), profile || new Profile(), field);
+        return html(replaceVariables(parse(abbr)), profile || new Profile(), options);
     };
 
     it('basic', () => {

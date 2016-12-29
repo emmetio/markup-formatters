@@ -7,13 +7,13 @@ const pug = require('../format/pug').default;
 
 describe('Pug formatter', () => {
     const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
-    const expand = (abbr, profile, field) => {
-        if (typeof profile === 'function') {
-            field = profile;
+    const expand = (abbr, profile, options) => {
+		if (typeof profile === 'function') {
+            options = { field: profile };
             profile = null;
         }
 
-        return pug(replaceVariables(parse(abbr)), profile || new Profile(), field);
+        return pug(replaceVariables(parse(abbr)), profile || new Profile(), options);
     };
 
     it('basic', () => {

@@ -1,8 +1,6 @@
 'use strict';
 
-import output from '../lib/output-builder';
-import Format from '../lib/format';
-import OutputNode from '../lib/output-node';
+import render from '../lib/render';
 import { splitByLines, handlePseudoSnippet, isFirstChild, isRoot } from '../lib/utils';
 
 const reOmitName = /^div$/i;
@@ -12,22 +10,22 @@ const reNl = /\n|\r/;
 const braceCode = 40; // code for '(' symbol
 
 /**
- * Outputs given parsed Emmet abbreviation as Pug (Jade), formatted according to
+ * Renders given parsed Emmet abbreviation as Pug, formatted according to
  * `profile` options
- * @param  {Node}     tree           Parsed Emmet abbreviation
- * @param  {Profile}  profile        Output profile
- * @param  {Function} [postProcess]  A post-processor for generated output node
- * that applies various transformations on it to shape-up a final output.
- * A post-processor is a function that takes `OutputNode` as first argument and
- * `Profile` as second and returns updated or new output node.
- * If it returns `null` – node will not be outputted
+ * @param  {Node}    tree      Parsed Emmet abbreviation
+ * @param  {Profile} profile   Output profile
+ * @param  {Object}  [options] Additional formatter options
  * @return {String}
  */
-export default function(tree, profile, field) {
-	return output(tree, field, (node, level, renderFields, next) => {
-		let outNode = new OutputNode(node, getFormat(node, level, profile));
+export default function pug(tree, profile, options) {
+	options = options || {};
+
+	return render(tree, options.field, (outNode, renderFields) => {
+		outNode = setFormatting(outNode, profile);
 
 		if (!handlePseudoSnippet(outNode, renderFields)) {
+			const node = outNode.node;
+
 			if (node.name) {
                 const name = profile.name(node.name);
 				const attrs = formatAttributes(node, profile, renderFields);
@@ -38,54 +36,44 @@ export default function(tree, profile, field) {
 				outNode.open = (canOmitName ? '' : name) + attrs;
 			}
 
-			let nodeValue = node.value;
-
 			// Do not generate fields for nodes with empty value and children
 			// or if node is self-closed
-			if (nodeValue == null && (node.children.length || node.selfClosing)) {
-				nodeValue = '';
+			if (node.value || (!node.children.length && !node.selfClosing) ) {
+				outNode.text = renderFields(formatNodeValue(node, profile));
 			}
-
-			// For multiline text we should precede each line with `| `.
-			// Also indent one-level deep
-			if (reNl.test(nodeValue)) {
-				const indent = profile.indent(1);
-				nodeValue = splitByLines(nodeValue).map(line => `${indent}| ${line}`).join('\n');
-			}
-
-            outNode.text = renderFields(nodeValue);
 		}
 
-        return outNode.toString(next());
+        return outNode;
 	});
 };
 
 /**
- * Returns format object for given abbreviation node
+ * Updates formatting properties for given output node
  * NB Unlike HTML, Pug is indent-based format so some formatting options from
  * `profile` will not take effect, otherwise output will be broken
- * @param {Node} node
- * @param {Profile} profile
- * @return {Map} Key is a tree node, value is a format object
+ * @param  {OutputNode} outNode Output wrapper of farsed abbreviation node
+ * @param  {Profile}    profile Output profile
+ * @return {OutputNode}
  */
-function getFormat(node, level, profile) {
-    const format = new Format();
-    format.indent = profile.indent(getIndentLevel(node, profile, level));
-    format.newline = '\n';
-    const prefix = format.newline + format.indent;
+function setFormatting(outNode, profile) {
+	const node = outNode.node;
+
+    outNode.indent = profile.indent(getIndentLevel(node, profile));
+    outNode.newline = '\n';
+    const prefix = outNode.newline + outNode.indent;
 
     // do not format the very first node in output
     if (!isRoot(node.parent) || !isFirstChild(node)) {
-        format.beforeOpen = prefix;
+        outNode.beforeOpen = prefix;
     }
 
     if (!node.isTextOnly && node.value) {
         // node with text: put a space before single-line text,
         // indent for multi-line text
-        format.beforeText = reNl.test(node.value) ? prefix + profile.indent(1) : ' ';
+        outNode.beforeText = reNl.test(node.value) ? prefix + profile.indent(1) : ' ';
     }
 
-	return format;
+	return outNode;
 }
 
 /**
@@ -95,8 +83,14 @@ function getFormat(node, level, profile) {
  * @param  {Number} level
  * @return {Number}
  */
-function getIndentLevel(node, profile, level) {
-	return level && node.parent.isTextOnly ? level - 1 : level;
+function getIndentLevel(node, profile) {
+	let level = node.parent.isTextOnly ? -2 : -1;
+	let ctx = node;
+	while (ctx = ctx.parent) {
+		level++;
+	}
+
+	return level < 0 ? 0 : level;
 }
 
 /**
@@ -130,4 +124,20 @@ function formatAttributes(node, profile, renderFields) {
 	});
 
 	return primary.join('') + (secondary.length ? `(${secondary.join(', ')})` : '');
+}
+
+/**
+ * Formats value of given node: for multiline text we should precede each
+ * line with `| ` with one-level deep indent
+ * @param  {Node} node
+ * @param  {Profile} profile
+ * @return {String|null}
+ */
+function formatNodeValue(node, profile) {
+	if (node.value != null && reNl.test(node.value)) {
+		const indent = profile.indent(1);
+		return splitByLines(node.value).map(line => `${indent}| ${line}`).join('\n');
+	}
+
+	return node.value;
 }
