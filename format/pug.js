@@ -1,11 +1,10 @@
 'use strict';
 
 import render from '../lib/render';
+import { getIndentLevel, formatAttributes } from './assets/indent-formats';
 import { splitByLines, handlePseudoSnippet, isFirstChild, isRoot } from '../lib/utils';
 
 const reOmitName = /^div$/i;
-const reId = /^id$/i;
-const reClass = /^class$/i;
 const reNl = /\n|\r/;
 const braceCode = 40; // code for '(' symbol
 
@@ -19,6 +18,10 @@ const braceCode = 40; // code for '(' symbol
  */
 export default function pug(tree, profile, options) {
 	options = options || {};
+	const attrOptions = {
+		wrap: 'round',
+		separator: ', '
+	};
 
 	return render(tree, options.field, (outNode, renderFields) => {
 		outNode = setFormatting(outNode, profile);
@@ -28,7 +31,7 @@ export default function pug(tree, profile, options) {
 
 			if (node.name) {
                 const name = profile.name(node.name);
-				const attrs = formatAttributes(node, profile, renderFields);
+				const attrs = formatAttributes(node, profile, renderFields, attrOptions);
 				// omit tag name if node has primary attributes only
 				// NB use `.charCodeAt(0)` instead of `[0]` to reduce string allocations
 				const canOmitName = attrs && attrs.charCodeAt(0) !== braceCode && reOmitName.test(name);
@@ -68,62 +71,11 @@ function setFormatting(outNode, profile) {
     }
 
     if (!node.isTextOnly && node.value) {
-        // node with text: put a space before single-line text,
-        // indent for multi-line text
+        // node with text: put a space before single-line text
         outNode.beforeText = reNl.test(node.value) ? prefix + profile.indent(1) : ' ';
     }
 
 	return outNode;
-}
-
-/**
- * Computes indent level for given node
- * @param  {Node} node
- * @param  {Profile} profile
- * @param  {Number} level
- * @return {Number}
- */
-function getIndentLevel(node, profile) {
-	let level = node.parent.isTextOnly ? -2 : -1;
-	let ctx = node;
-	while (ctx = ctx.parent) {
-		level++;
-	}
-
-	return level < 0 ? 0 : level;
-}
-
-/**
- * Formats attributes of given node
- * @param  {Node} node
- * @param  {Profile} profile
- * @param  {Function} renderFields
- * @return {String}
- */
-function formatAttributes(node, profile, renderFields) {
-	const primary = [], secondary = [];
-
-	node.attributes.forEach(attr => {
-		if (attr.options.implied && attr.value == null) {
-			return null;
-		}
-
-		const name = profile.attribute(attr.name);
-		const value = renderFields(attr.value);
-
-		if (reId.test(name)) {
-			primary.push(`#${value}`);
-		} else if (reClass.test(name)) {
-			primary.push(`.${value.replace(/\s+/g, '.')}`);
-		} else {
-			const isBoolean = attr.value == null
-				&& (attr.options.boolean || profile.get('booleanAttributes').indexOf(name.toLowerCase()) !== -1);
-
-			secondary.push(isBoolean ? name : `${name}=${profile.quote(value)}`);
-		}
-	});
-
-	return primary.join('') + (secondary.length ? `(${secondary.join(', ')})` : '');
 }
 
 /**
