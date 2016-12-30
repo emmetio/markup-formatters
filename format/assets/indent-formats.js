@@ -6,17 +6,9 @@
 
 const reId = /^id$/i;
 const reClass = /^class$/i;
-const secondaryAttributesWrap = {
-	none:   attrs => ` ${attrs}`,
-	round:  attrs => `(${attrs})`,
-	curly:  attrs => `{${attrs}}`,
-	square: attrs => `[${attrs}]`
-};
-
 const defaultAttrOptions = {
-	wrap: 'none',
-	boolean: attrName => attrName,
-	separator: ', '
+	primary: attrs => attrs.join(''),
+	secondary: attrs => attrs.map(attr => attr.isBoolean ? attr.name : `${attr.name}=${attr.value}`).join(', ')
 };
 
 /**
@@ -47,17 +39,11 @@ export function formatAttributes(node, profile, renderFields, options) {
 			const isBoolean = attr.value == null
 				&& (attr.options.boolean || profile.get('booleanAttributes').indexOf(name.toLowerCase()) !== -1);
 
-			secondary.push(isBoolean ? options.boolean(name) : `${name}=${profile.quote(value)}`);
+			secondary.push({ name, value, isBoolean });
 		}
 	});
 
-	let output = primary.join('');
-	if (secondary.length) {
-		const secondaryWrap = secondaryAttributesWrap[options.wrap];
-		output += secondaryWrap(secondary.join(options.separator));
-	}
-
-	return output;
+	return options.primary(primary) + options.secondary(secondary);
 }
 
 /**

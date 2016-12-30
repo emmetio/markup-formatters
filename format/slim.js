@@ -7,6 +7,12 @@ import { splitByLines, handlePseudoSnippet, isFirstChild, isRoot } from '../lib/
 const reOmitName = /^div$/i;
 const reNl = /\n|\r/;
 const hasPrimaryAttrs = /^[.#]/;
+const secondaryAttributesWrap = {
+	none:   attrs => ` ${attrs}`,
+	round:  attrs => `(${attrs})`,
+	curly:  attrs => `{${attrs}}`,
+	square: attrs => `[${attrs}]`
+};
 
 /**
  * Renders given parsed Emmet abbreviation as Slim, formatted according to
@@ -18,12 +24,21 @@ const hasPrimaryAttrs = /^[.#]/;
  */
 export default function slim(tree, profile, options) {
 	options = options || {};
+	const wrap = options.attributeWrap
+		&& secondaryAttributesWrap[options.attributeWrap]
+		|| secondaryAttributesWrap.none;
+
 	const attrOptions = {
-		wrap: options.attributeWrap || 'none',
-		separator: ' '
+		secondary(attrs) {
+			const str = attrs.map(attr => attr.isBoolean
+				? (wrap === secondaryAttributesWrap.none ? `${attr.name}=true` : attr.name)
+				: `${attr.name}=${profile.quote(attr.value)}`
+			).join(' ');
+			return str ? wrap(str) : '';
+		}
 	};
 
-	// In case of absend attribute wrapper, output boolean attributes differently
+	// In case of absent attribute wrapper, output boolean attributes differently
 	if (attrOptions.wrap === 'none') {
 		attrOptions.boolean = name => `${name}=true`
 	}

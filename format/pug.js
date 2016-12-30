@@ -6,7 +6,7 @@ import { splitByLines, handlePseudoSnippet, isFirstChild, isRoot } from '../lib/
 
 const reOmitName = /^div$/i;
 const reNl = /\n|\r/;
-const braceCode = 40; // code for '(' symbol
+const hasPrimaryAttrs = /^[.#]/;
 
 /**
  * Renders given parsed Emmet abbreviation as Pug, formatted according to
@@ -19,8 +19,10 @@ const braceCode = 40; // code for '(' symbol
 export default function pug(tree, profile, options) {
 	options = options || {};
 	const attrOptions = {
-		wrap: 'round',
-		separator: ', '
+		secondary(attrs) {
+			const str = attrs.map(attr => attr.isBoolean ? attr.name : `${attr.name}=${profile.quote(attr.value)}`).join(', ');
+			return str ? `(${str})` : '';
+		}
 	};
 
 	return render(tree, options.field, (outNode, renderFields) => {
@@ -33,8 +35,7 @@ export default function pug(tree, profile, options) {
                 const name = profile.name(node.name);
 				const attrs = formatAttributes(node, profile, renderFields, attrOptions);
 				// omit tag name if node has primary attributes only
-				// NB use `.charCodeAt(0)` instead of `[0]` to reduce string allocations
-				const canOmitName = attrs && attrs.charCodeAt(0) !== braceCode && reOmitName.test(name);
+				const canOmitName = attrs && hasPrimaryAttrs.test(attrs) && reOmitName.test(name);
 
 				outNode.open = (canOmitName ? '' : name) + attrs;
 			}
