@@ -123,4 +123,16 @@ describe('HTML formatter', () => {
 		assert.equal(expand('{<!DOCTYPE html>}+html>(head>meta[charset=${charset}]/+title{${1:Document}})+body', field),
 			'<!DOCTYPE html>\n<html>\n<head>\n\t<meta charset="charset">\n\t<title>${2:Document}</title>\n</head>\n<body>\n\t${3}\n</body>\n</html>');
 	});
+
+	it('comment', () => {
+		const options = {comment: {enabled: true}};
+		assert.equal(expand('ul>li.item', null, options), '<ul>\n\t<li class="item"></li>\n\t<!-- /.item -->\n</ul>');
+		assert.equal(expand('div>ul>li.item#foo', null, options), '<div>\n\t<ul>\n\t\t<li class="item" id="foo"></li>\n\t\t<!-- /#foo.item -->\n\t</ul>\n</div>');
+
+		const options2 = {comment: {
+			enabled: true,
+			after: ' { [%ID] }'
+		}};
+		assert.equal(expand('div>ul>li.item#foo', null, options2), '<div>\n\t<ul>\n\t\t<li class="item" id="foo"></li> { %foo }\n\t</ul>\n</div>');
+	});
 });

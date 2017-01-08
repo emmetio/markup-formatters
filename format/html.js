@@ -2,7 +2,23 @@
 
 import parseFields from '@emmetio/field-parser';
 import render from '../lib/render';
+import template from '../lib/template';
 import { handlePseudoSnippet, isFirstChild, isRoot, isPseudoSnippet } from '../lib/utils';
+
+const commentOptions = {
+	// enable node commenting
+	enabled: false,
+
+	// attributes that should trigger node commenting on specific node,
+	// if commenting is enabled
+	trigger: ['id', 'class'],
+
+	// comment before opening tag
+	before: '',
+
+	// comment after closing tag
+	after: '\n<!-- /[#ID][.CLASS] -->'
+};
 
 /**
  * Renders given parsed Emmet abbreviation as HTML, formatted according to
@@ -13,7 +29,8 @@ import { handlePseudoSnippet, isFirstChild, isRoot, isPseudoSnippet } from '../l
  * @return {String}
  */
 export default function html(tree, profile, options) {
-	options = options || {};
+	options = Object.assign({}, options);
+	options.comment = Object.assign({}, commentOptions, options.comment);
 
 	return render(tree, options.field, outNode => {
 		outNode = setFormatting(outNode, profile);
@@ -29,6 +46,8 @@ export default function html(tree, profile, options) {
 				if (!node.selfClosing) {
 					outNode.close = `</${name}>`;
 				}
+
+				commentNode(outNode, options.comment);
 			}
 
 			// Do not generate fields for nodes with empty value and children
@@ -247,4 +266,36 @@ function getIndentLevel(node, profile) {
 	}
 
 	return level < 0 ? 0 : level;
+}
+
+/**
+ * Comments given output node, if required
+ * @param  {OutputNode} outNode
+ * @param  {Object} options
+ */
+function commentNode(outNode, options) {
+	const node = outNode.node;
+
+	if (!options.enabled || !options.trigger || !node.name) {
+		return;
+	}
+
+	const attrs = outNode.node.attributes.reduce((out, attr) => {
+		if (attr.name && attr.value != null) {
+			out[attr.name.toUpperCase().replace(/-/g, '_')] = attr.value;
+		}
+
+		return out;
+	}, {});
+
+	// add comment only if attribute trigger is present
+	for (let i = 0, il = options.trigger.length; i < il; i++) {
+		if (options.trigger[i].toUpperCase() in attrs) {
+			outNode.open = template(options.before, attrs) + outNode.open;
+			if (outNode.close) {
+				outNode.close += template(options.after, attrs);
+			}
+			break;
+		}
+	}
 }
