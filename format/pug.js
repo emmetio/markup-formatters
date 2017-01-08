@@ -1,12 +1,10 @@
 'use strict';
 
 import render from '../lib/render';
-import { getIndentLevel, formatAttributes } from './assets/indent-formats';
-import { splitByLines, handlePseudoSnippet, isFirstChild, isRoot } from '../lib/utils';
+import indentFormat from './assets/indent-format';
+import { splitByLines, handlePseudoSnippet } from '../lib/utils';
 
-const reOmitName = /^div$/i;
 const reNl = /\n|\r/;
-const hasPrimaryAttrs = /^[.#]/;
 
 /**
  * Renders given parsed Emmet abbreviation as Pug, formatted according to
@@ -18,32 +16,25 @@ const hasPrimaryAttrs = /^[.#]/;
  */
 export default function pug(tree, profile, options) {
 	options = options || {};
-	const attrOptions = {
-		secondary(attrs) {
-			const str = attrs.map(attr => attr.isBoolean ? attr.name : `${attr.name}=${profile.quote(attr.value)}`).join(', ');
-			return str ? `(${str})` : '';
+	const nodeOptions = {
+		open: '[NAME][PRIMARY_ATTRS][(SECONDARY_ATTRS)]',
+		attributes: {
+			secondary(attrs) {
+				return attrs.map(attr => attr.isBoolean ? attr.name : `${attr.name}=${profile.quote(attr.value)}`).join(', ');
+			}
 		}
 	};
 
-	return render(tree, options.field, (outNode, renderFields) => {
-		outNode = setFormatting(outNode, profile);
+	return render(tree, options.field, outNode => {
+		outNode = indentFormat(outNode, profile, nodeOptions);
+		outNode = updateFormatting(outNode, profile);
 
-		if (!handlePseudoSnippet(outNode, renderFields)) {
+		if (!handlePseudoSnippet(outNode)) {
 			const node = outNode.node;
-
-			if (node.name) {
-                const name = profile.name(node.name);
-				const attrs = formatAttributes(node, profile, renderFields, attrOptions);
-				// omit tag name if node has primary attributes only
-				const canOmitName = attrs && hasPrimaryAttrs.test(attrs) && reOmitName.test(name);
-
-				outNode.open = (canOmitName ? '' : name) + attrs;
-			}
-
 			// Do not generate fields for nodes with empty value and children
 			// or if node is self-closed
 			if (node.value || (!node.children.length && !node.selfClosing) ) {
-				outNode.text = renderFields(formatNodeValue(node, profile));
+				outNode.text = outNode.renderFields(formatNodeValue(node, profile));
 			}
 		}
 
@@ -55,25 +46,18 @@ export default function pug(tree, profile, options) {
  * Updates formatting properties for given output node
  * NB Unlike HTML, Pug is indent-based format so some formatting options from
  * `profile` will not take effect, otherwise output will be broken
- * @param  {OutputNode} outNode Output wrapper of farsed abbreviation node
+ * @param  {OutputNode} outNode Output wrapper of parsed abbreviation node
  * @param  {Profile}    profile Output profile
  * @return {OutputNode}
  */
-function setFormatting(outNode, profile) {
+function updateFormatting(outNode, profile) {
 	const node = outNode.node;
-
-    outNode.indent = profile.indent(getIndentLevel(node, profile));
-    outNode.newline = '\n';
-    const prefix = outNode.newline + outNode.indent;
-
-    // do not format the very first node in output
-    if (!isRoot(node.parent) || !isFirstChild(node)) {
-        outNode.beforeOpen = prefix;
-    }
 
     if (!node.isTextOnly && node.value) {
         // node with text: put a space before single-line text
-        outNode.beforeText = reNl.test(node.value) ? prefix + profile.indent(1) : ' ';
+        outNode.beforeText = reNl.test(node.value)
+			? outNode.newline + outNode.indent + profile.indent(1)
+			: ' ';
     }
 
 	return outNode;

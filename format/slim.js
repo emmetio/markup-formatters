@@ -1,17 +1,15 @@
 'use strict';
 
 import render from '../lib/render';
-import { getIndentLevel, formatAttributes } from './assets/indent-formats';
-import { splitByLines, handlePseudoSnippet, isFirstChild, isRoot } from '../lib/utils';
+import indentFormat from './assets/indent-format';
+import { splitByLines, handlePseudoSnippet, isRoot } from '../lib/utils';
 
-const reOmitName = /^div$/i;
 const reNl = /\n|\r/;
-const hasPrimaryAttrs = /^[.#]/;
-const secondaryAttributesWrap = {
-	none:   attrs => ` ${attrs}`,
-	round:  attrs => `(${attrs})`,
-	curly:  attrs => `{${attrs}}`,
-	square: attrs => `[${attrs}]`
+const secondaryAttrs = {
+	none:   '[ SECONDARY_ATTRS]',
+	round:  '[(SECONDARY_ATTRS)]',
+	curly:  '[{SECONDARY_ATTRS}]',
+	square: '[[SECONDARY_ATTRS]'
 };
 
 /**
@@ -24,44 +22,38 @@ const secondaryAttributesWrap = {
  */
 export default function slim(tree, profile, options) {
 	options = options || {};
-	const wrap = options.attributeWrap
-		&& secondaryAttributesWrap[options.attributeWrap]
-		|| secondaryAttributesWrap.none;
+	const SECONDARY_ATTRS = options.attributeWrap
+		&& secondaryAttrs[options.attributeWrap]
+		|| secondaryAttrs.none;
 
-	const attrOptions = {
-		secondary(attrs) {
-			const str = attrs.map(attr => attr.isBoolean
-				? (wrap === secondaryAttributesWrap.none ? `${attr.name}=true` : attr.name)
-				: `${attr.name}=${profile.quote(attr.value)}`
-			).join(' ');
-			return str ? wrap(str) : '';
+	const booleanAttr = SECONDARY_ATTRS === secondaryAttrs.none
+		? attr => `${attr.name}=true`
+		: attr => attr.name
+
+	const nodeOptions = {
+		open: `[NAME][PRIMARY_ATTRS]${SECONDARY_ATTRS}[SELF_CLOSE]`,
+		selfClose: '/',
+		attributes: {
+			secondary(attrs) {
+				return attrs.map(attr => attr.isBoolean
+					? booleanAttr(attr)
+					: `${attr.name}=${profile.quote(attr.value)}`
+				).join(' ');
+			}
 		}
 	};
 
-	// In case of absent attribute wrapper, output boolean attributes differently
-	if (attrOptions.wrap === 'none') {
-		attrOptions.boolean = name => `${name}=true`
-	}
-
 	return render(tree, options.field, (outNode, renderFields) => {
-		outNode = setFormatting(outNode, profile);
+		outNode = indentFormat(outNode, profile, nodeOptions);
+		outNode = updateFormatting(outNode, profile);
 
-		if (!handlePseudoSnippet(outNode, renderFields)) {
+		if (!handlePseudoSnippet(outNode)) {
 			const node = outNode.node;
-
-			if (node.name) {
-                const name = profile.name(node.name);
-				const attrs = formatAttributes(node, profile, renderFields, attrOptions);
-				// omit tag name if node has primary attributes
-				const canOmitName = attrs && hasPrimaryAttrs.test(attrs) && reOmitName.test(name);
-
-				outNode.open = (canOmitName ? '' : name) + attrs + (node.selfClosing ? '/' : '');
-			}
 
 			// Do not generate fields for nodes with empty value and children
 			// or if node is self-closed
 			if (node.value || (!node.children.length && !node.selfClosing) ) {
-				outNode.text = renderFields(formatNodeValue(node, profile));
+				outNode.text = outNode.renderFields(formatNodeValue(node, profile));
 			}
 		}
 
@@ -77,27 +69,22 @@ export default function slim(tree, profile, options) {
  * @param  {Profile}    profile Output profile
  * @return {OutputNode}
  */
-function setFormatting(outNode, profile) {
+function updateFormatting(outNode, profile) {
 	const node = outNode.node;
 	const parent = node.parent;
-
-    outNode.indent = profile.indent(getIndentLevel(node, profile));
-    outNode.newline = '\n';
-    const prefix = outNode.newline + outNode.indent;
 
 	// Edge case: a single inline-level child inside node without text:
 	// allow it to be inlined
 	if (profile.get('inlineBreak') === 0 && isInline(node, profile)
 		&& !isRoot(parent) && parent.value == null && parent.children.length === 1) {
 		outNode.beforeOpen = ': ';
-	} else if (!isRoot(node.parent) || !isFirstChild(node)) {
-		// Do not format the very first node in output
-        outNode.beforeOpen = prefix;
-    }
+	}
 
     if (!node.isTextOnly && node.value) {
         // node with text: put a space before single-line text
-        outNode.beforeText = reNl.test(node.value) ? prefix + profile.indent(1) : ' ';
+        outNode.beforeText = reNl.test(node.value)
+			? outNode.newline + outNode.indent + profile.indent(1)
+			: ' ';
     }
 
 	return outNode;

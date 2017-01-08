@@ -15,15 +15,15 @@ import { handlePseudoSnippet, isFirstChild, isRoot, isPseudoSnippet } from '../l
 export default function html(tree, profile, options) {
 	options = options || {};
 
-	return render(tree, options.field, (outNode, renderFields) => {
+	return render(tree, options.field, outNode => {
 		outNode = setFormatting(outNode, profile);
 
-		if (!handlePseudoSnippet(outNode, renderFields)) {
+		if (!handlePseudoSnippet(outNode)) {
 			const node = outNode.node;
 
 			if (node.name) {
 				const name = profile.name(node.name);
-				const attrs = formatAttributes(node, profile, renderFields);
+				const attrs = formatAttributes(outNode, profile);
 
 				outNode.open = `<${name}${attrs}${node.selfClosing ? profile.selfClose() : ''}>`;
 				if (!node.selfClosing) {
@@ -34,7 +34,7 @@ export default function html(tree, profile, options) {
 			// Do not generate fields for nodes with empty value and children
 			// or if node is self-closed
 			if (node.value || (!node.children.length && !node.selfClosing) ) {
-				outNode.text = renderFields(node.value);
+				outNode.text = outNode.renderFields(node.value);
 			}
 		}
 
@@ -173,12 +173,13 @@ function hasInnerFormatting(node, profile) {
 
 /**
  * Outputs attributes of given abbreviation node as HTML attributes
- * @param  {Node} node
- * @param  {Profile} profile
- * @param  {Function} renderFields
+ * @param  {OutputNode} outNode
+ * @param  {Profile}    profile
  * @return {String}
  */
-function formatAttributes(node, profile, renderFields) {
+function formatAttributes(outNode, profile) {
+	const node = outNode.node;
+
     return node.attributes.map(attr => {
         if (attr.options.implied && attr.value == null) {
     		return null;
@@ -197,7 +198,7 @@ function formatAttributes(node, profile, renderFields) {
     	}
 
     	if (attrValue == null) {
-    		attrValue = renderFields(attr.value);
+    		attrValue = outNode.renderFields(attr.value);
     	}
 
     	return ` ${attrName}=${profile.quote(attrValue)}`;
