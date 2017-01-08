@@ -2,9 +2,12 @@
   "name": "@emmetio/markup-formatters",
   "version": "0.0.1",
   "description": "Formats and outputs Emmet abbreviation in different markup languages (HTML, XML, Slim, Pug etc)",
-  "main": "index.js",
+  "main": "dist/markup-formatters.cjs.js",
+  "jsnext:main": "dist/markup-formatters.es.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+	"build": "./build.sh",
+    "prepublish": "npm run test && npm run build"
   },
   "repository": {
     "type": "git",
@@ -27,7 +30,9 @@
     "@emmetio/variable-resolver": "^0.1.1",
     "babel-plugin-transform-es2015-modules-commonjs": "^6.18.0",
     "babel-register": "^6.18.0",
-    "mocha": "^3.2.0"
+    "mocha": "^3.2.0",
+    "rollup": "^0.41.1",
+    "rollup-watch": "^3.2.2"
   },
   "dependencies": {
     "@emmetio/field-parser": "^0.1.1"
