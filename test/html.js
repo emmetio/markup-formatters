@@ -1,3 +1,5 @@
+'use strict';
+
 const assert = require('assert');
 const parse = require('@emmetio/abbreviation');
 const Profile = require('@emmetio/output-profile');
