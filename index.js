@@ -31,13 +31,19 @@ export default function(tree, profile, syntax, options) {
 		syntax = null;
 	}
 
-	if (!syntax) {
+	if (!supports(syntax)) {
+		// fallback to HTML if given syntax is not supported
 		syntax = 'html';
-	}
-
-	if (!supportedSyntaxed[syntax]) {
-		throw new Error(`Syntax "${syntax}" is not supported`);
 	}
 
 	return supportedSyntaxed[syntax](tree, profile, options);
 };
+
+/**
+ * Check if given syntax is supported
+ * @param {String} syntax
+ * @return {Boolean}
+ */
+export function supports(syntax) {
+	return !!syntax && syntax in supportedSyntaxed;
+}

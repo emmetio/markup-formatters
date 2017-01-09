@@ -16,7 +16,5 @@ describe('Main formatter', () => {
 		assert.equal(expand('a>b', 'html'), '<a><b></b></a>');
 		assert.equal(expand('a>b', 'slim'), 'a\n\tb');
 		assert.equal(expand('a>b', 'haml'), '%a\n\t%b');
-
-		assert.throws(() => expand('a>b', 'foo'), /Syntax "foo" is not supported/);
 	});
 });
