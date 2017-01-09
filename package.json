@@ -1,6 +1,6 @@
 {
   "name": "@emmetio/markup-formatters",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Formats and outputs Emmet abbreviation in different markup languages (HTML, XML, Slim, Pug etc)",
   "main": "dist/markup-formatters.cjs.js",
   "jsnext:main": "dist/markup-formatters.es.js",
