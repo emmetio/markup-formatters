@@ -10,8 +10,7 @@ convert () {
 		name=$2
 	fi
 
-	rollup -c -o dist/$name.cjs.js -f cjs $1
-	rollup -c -o dist/$name.es.js -f es $1
+	rollup -c --environment DEST_NAME:$name $1
 }
 
 # convert main file
