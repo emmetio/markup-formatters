@@ -1,7 +1,7 @@
 'use strict';
 
 import parseFields from '@emmetio/field-parser';
-import render from '../lib/render';
+import render from '@emmetio/output-renderer';
 import template from '../lib/template';
 import { handlePseudoSnippet, isFirstChild, isRoot, isPseudoSnippet } from '../lib/utils';
 

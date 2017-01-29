@@ -1,6 +1,6 @@
 'use strict';
 
-import render from '../lib/render';
+import render from '@emmetio/output-renderer';
 import indentFormat from './assets/indent-format';
 import { splitByLines, handlePseudoSnippet } from '../lib/utils';
 

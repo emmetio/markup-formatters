@@ -34,6 +34,7 @@
     "rollup": "^0.41.1"
   },
   "dependencies": {
-    "@emmetio/field-parser": "^0.1.1"
+    "@emmetio/field-parser": "^0.1.1",
+    "@emmetio/output-renderer": "^0.1.0"
   }
 }
