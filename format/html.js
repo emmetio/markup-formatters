@@ -159,8 +159,17 @@ function shouldFormatInline(node, profile) {
             adjacentInline++;
         }
 
-        return adjacentInline >= profile.get('inlineBreak');
+		if (adjacentInline >= profile.get('inlineBreak')) {
+			return true;
+		}
     }
+
+	// Another edge case: inline node contains node that should receive foramtting
+	for (let i = 0, il = node.children.length; i < il; i++) {
+		if (shouldFormatNode(node.children[i], profile)) {
+			return true;
+		}
+	}
 
     return false;
 }

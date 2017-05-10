@@ -33,6 +33,8 @@ describe('HTML formatter', () => {
         const keepInline = new Profile({inlineBreak: 0});
         const xhtml = new Profile({selfClosingStyle: 'xhtml'});
 
+        assert.equal(expand('div>a>b*3', xhtml), '<div>\n\t<a>\n\t\t<b></b>\n\t\t<b></b>\n\t\t<b></b>\n\t</a>\n</div>');
+
         assert.equal(expand('p>i', profile), '<p><i></i></p>');
         assert.equal(expand('p>i*2', profile), '<p><i></i><i></i></p>');
         assert.equal(expand('p>i*2', breakInline), '<p>\n\t<i></i>\n\t<i></i>\n</p>');
