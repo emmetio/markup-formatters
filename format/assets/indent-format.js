@@ -29,9 +29,9 @@ export default function indentFormat(outNode, profile, options) {
 	outNode.newline = '\n';
 
 	// Do not format the very first node in output
-    if (!isRoot(node.parent) || !isFirstChild(node)) {
-        outNode.beforeOpen = outNode.newline + outNode.indent;
-    }
+	if (!isRoot(node.parent) || !isFirstChild(node)) {
+		outNode.beforeOpen = outNode.newline + outNode.indent;
+	}
 
 	if (node.name) {
 		const data = Object.assign({
@@ -97,11 +97,9 @@ export function getAttributes(outNode, profile, options) {
 /**
  * Computes indent level for given node
  * @param  {Node} node
- * @param  {Profile} profile
- * @param  {Number} level
  * @return {Number}
  */
-export function getIndentLevel(node, profile) {
+export function getIndentLevel(node) {
 	let level = node.parent.isTextOnly ? -2 : -1;
 	let ctx = node;
 	while (ctx = ctx.parent) {

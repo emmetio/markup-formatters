@@ -38,9 +38,9 @@ export default function pug(tree, profile, options) {
 			}
 		}
 
-        return outNode;
+		return outNode;
 	});
-};
+}
 
 /**
  * Updates formatting properties for given output node
@@ -53,12 +53,12 @@ export default function pug(tree, profile, options) {
 function updateFormatting(outNode, profile) {
 	const node = outNode.node;
 
-    if (!node.isTextOnly && node.value) {
-        // node with text: put a space before single-line text
-        outNode.beforeText = reNl.test(node.value)
+	if (!node.isTextOnly && node.value) {
+		// node with text: put a space before single-line text
+		outNode.beforeText = reNl.test(node.value)
 			? outNode.newline + outNode.indent + profile.indent(1)
 			: ' ';
-    }
+	}
 
 	return outNode;
 }

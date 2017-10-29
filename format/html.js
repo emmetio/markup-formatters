@@ -70,28 +70,28 @@ export default function html(tree, profile, options) {
 function setFormatting(outNode, profile) {
 	const node = outNode.node;
 
-    if (shouldFormatNode(node, profile)) {
-        outNode.indent = profile.indent(getIndentLevel(node, profile));
-        outNode.newline = '\n';
-        const prefix = outNode.newline + outNode.indent;
+	if (shouldFormatNode(node, profile)) {
+		outNode.indent = profile.indent(getIndentLevel(node, profile));
+		outNode.newline = '\n';
+		const prefix = outNode.newline + outNode.indent;
 
-        // do not format the very first node in output
-        if (!isRoot(node.parent) || !isFirstChild(node)) {
-            outNode.beforeOpen = prefix;
-            if (node.isTextOnly) {
-                outNode.beforeText = prefix;
-            }
-        }
+		// do not format the very first node in output
+		if (!isRoot(node.parent) || !isFirstChild(node)) {
+			outNode.beforeOpen = prefix;
+			if (node.isTextOnly) {
+				outNode.beforeText = prefix;
+			}
+		}
 
-        if (hasInnerFormatting(node, profile)) {
-            if (!node.isTextOnly) {
-                outNode.beforeText = prefix + profile.indent(1);
-            }
-            outNode.beforeClose = prefix;
-        }
-    }
+		if (hasInnerFormatting(node, profile)) {
+			if (!node.isTextOnly) {
+				outNode.beforeText = prefix + profile.indent(1);
+			}
+			outNode.beforeClose = prefix;
+		}
+	}
 
-    return outNode;
+	return outNode;
 }
 
 /**
@@ -105,13 +105,13 @@ function shouldFormatNode(node, profile) {
 		return false;
 	}
 
-    if (node.parent.isTextOnly
-        && node.parent.children.length === 1
-        && parseFields(node.parent.value).fields.length) {
-        // Edge case: do not format the only child of text-only node,
-        // but only if parent contains fields
-        return false;
-    }
+	if (node.parent.isTextOnly
+		&& node.parent.children.length === 1
+		&& parseFields(node.parent.value).fields.length) {
+		// Edge case: do not format the only child of text-only node,
+		// but only if parent contains fields
+		return false;
+	}
 
 	return isInline(node, profile) ? shouldFormatInline(node, profile) : true;
 }
@@ -128,41 +128,41 @@ function shouldFormatInline(node, profile) {
 		return false;
 	}
 
-    if (isPseudoSnippet(node)) {
-        return true;
-    }
+	if (isPseudoSnippet(node)) {
+		return true;
+	}
 
-    // check if inline node is the next sibling of block-level node
-    if (node.childIndex === 0) {
-        // first node in parent: format if it’s followed by a block-level element
-        let next = node;
-        while (next = next.nextSibling) {
-            if (!isInline(next, profile)) {
-                return true;
-            }
-        }
-    } else if (!isInline(node.previousSibling, profile)) {
-        // node is right after block-level element
-        return true;
-    }
+	// check if inline node is the next sibling of block-level node
+	if (node.childIndex === 0) {
+		// first node in parent: format if it’s followed by a block-level element
+		let next = node;
+		while (next = next.nextSibling) {
+			if (!isInline(next, profile)) {
+				return true;
+			}
+		}
+	} else if (!isInline(node.previousSibling, profile)) {
+		// node is right after block-level element
+		return true;
+	}
 
-    if (profile.get('inlineBreak')) {
-        // check for adjacent inline elements before and after current element
-        let adjacentInline = 1;
-        let before = node, after = node;
+	if (profile.get('inlineBreak')) {
+		// check for adjacent inline elements before and after current element
+		let adjacentInline = 1;
+		let before = node, after = node;
 
-        while (isInlineElement((before = before.previousSibling), profile)) {
-            adjacentInline++;
-        }
+		while (isInlineElement((before = before.previousSibling), profile)) {
+			adjacentInline++;
+		}
 
-        while (isInlineElement((after = after.nextSibling), profile)) {
-            adjacentInline++;
-        }
+		while (isInlineElement((after = after.nextSibling), profile)) {
+			adjacentInline++;
+		}
 
 		if (adjacentInline >= profile.get('inlineBreak')) {
 			return true;
 		}
-    }
+	}
 
 	// Another edge case: inline node contains node that should receive foramtting
 	for (let i = 0, il = node.children.length; i < il; i++) {
@@ -171,7 +171,7 @@ function shouldFormatInline(node, profile) {
 		}
 	}
 
-    return false;
+	return false;
 }
 
 /**
@@ -182,21 +182,21 @@ function shouldFormatInline(node, profile) {
  * @return {Boolean}
  */
 function hasInnerFormatting(node, profile) {
-    // check if node if forced for inner formatting
-    const nodeName = (node.name || '').toLowerCase();
-    if (profile.get('formatForce').indexOf(nodeName) !== -1) {
-        return true;
-    }
+	// check if node if forced for inner formatting
+	const nodeName = (node.name || '').toLowerCase();
+	if (profile.get('formatForce').indexOf(nodeName) !== -1) {
+		return true;
+	}
 
-    // check if any of children should receive formatting
-    // NB don’t use `childrent.some()` to reduce memory allocations
-    for (let i = 0; i < node.children.length; i++) {
-        if (shouldFormatNode(node.children[i], profile)) {
-            return true;
-        }
-    }
+	// check if any of children should receive formatting
+	// NB don’t use `childrent.some()` to reduce memory allocations
+	for (let i = 0; i < node.children.length; i++) {
+		if (shouldFormatNode(node.children[i], profile)) {
+			return true;
+		}
+	}
 
-    return false;
+	return false;
 }
 
 /**
@@ -208,29 +208,29 @@ function hasInnerFormatting(node, profile) {
 function formatAttributes(outNode, profile) {
 	const node = outNode.node;
 
-    return node.attributes.map(attr => {
-        if (attr.options.implied && attr.value == null) {
-    		return null;
-    	}
+	return node.attributes.map(attr => {
+		if (attr.options.implied && attr.value == null) {
+			return null;
+		}
 
-    	const attrName = profile.attribute(attr.name);
-    	let attrValue = null;
+		const attrName = profile.attribute(attr.name);
+		let attrValue = null;
 
-        // handle boolean attributes
-    	if (attr.options.boolean || profile.get('booleanAttributes').indexOf(attrName.toLowerCase()) !== -1) {
-    		if (profile.get('compactBooleanAttributes') && attr.value == null) {
-    			return ` ${attrName}`;
-    		} else if (attr.value == null) {
-    			attrValue = attrName;
-    		}
-    	}
+		// handle boolean attributes
+		if (attr.options.boolean || profile.get('booleanAttributes').indexOf(attrName.toLowerCase()) !== -1) {
+			if (profile.get('compactBooleanAttributes') && attr.value == null) {
+				return ` ${attrName}`;
+			} else if (attr.value == null) {
+				attrValue = attrName;
+			}
+		}
 
-    	if (attrValue == null) {
-    		attrValue = outNode.renderFields(attr.value);
-    	}
+		if (attrValue == null) {
+			attrValue = outNode.renderFields(attr.value);
+		}
 
-    	return ` ${attrName}=${profile.quote(attrValue)}`;
-    }).join('');
+		return ` ${attrName}=${profile.quote(attrValue)}`;
+	}).join('');
 }
 
 /**

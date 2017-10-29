@@ -37,7 +37,7 @@ export default function(tree, profile, syntax, options) {
 	}
 
 	return supportedSyntaxed[syntax](tree, profile, options);
-};
+}
 
 /**
  * Check if given syntax is supported

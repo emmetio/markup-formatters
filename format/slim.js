@@ -28,7 +28,7 @@ export default function slim(tree, profile, options) {
 
 	const booleanAttr = SECONDARY_ATTRS === secondaryAttrs.none
 		? attr => `${attr.name}=true`
-		: attr => attr.name
+		: attr => attr.name;
 
 	const nodeOptions = {
 		open: `[NAME][PRIMARY_ATTRS]${SECONDARY_ATTRS}[SELF_CLOSE]`,
@@ -43,7 +43,7 @@ export default function slim(tree, profile, options) {
 		}
 	};
 
-	return render(tree, options.field, (outNode, renderFields) => {
+	return render(tree, options.field, outNode => {
 		outNode = indentFormat(outNode, profile, nodeOptions);
 		outNode = updateFormatting(outNode, profile);
 
@@ -57,9 +57,9 @@ export default function slim(tree, profile, options) {
 			}
 		}
 
-        return outNode;
+		return outNode;
 	});
-};
+}
 
 /**
  * Updates formatting properties for given output node
@@ -80,12 +80,12 @@ function updateFormatting(outNode, profile) {
 		outNode.beforeOpen = ': ';
 	}
 
-    if (!node.isTextOnly && node.value) {
-        // node with text: put a space before single-line text
-        outNode.beforeText = reNl.test(node.value)
+	if (!node.isTextOnly && node.value) {
+		// node with text: put a space before single-line text
+		outNode.beforeText = reNl.test(node.value)
 			? outNode.newline + outNode.indent + profile.indent(1)
 			: ' ';
-    }
+	}
 
 	return outNode;
 }
