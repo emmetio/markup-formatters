@@ -30,7 +30,7 @@ const commentOptions = {
  */
 export default function html(tree, profile, options) {
 	options = Object.assign({}, options);
-	options.comment = Object.assign({}, commentOptions, options.comment);
+	const format = getFormatOptions(options);
 
 	return render(tree, options.field, outNode => {
 		outNode = setFormatting(outNode, profile);
@@ -47,7 +47,7 @@ export default function html(tree, profile, options) {
 					outNode.close = `</${name}>`;
 				}
 
-				commentNode(outNode, options.comment);
+				commentNode(outNode, format.comment);
 			}
 
 			// Do not generate fields for nodes with empty value and children
@@ -307,4 +307,10 @@ function commentNode(outNode, options) {
 			break;
 		}
 	}
+}
+
+function getFormatOptions(options) {
+	const format = Object.assign({}, options && options.format);
+	format.comment = Object.assign({}, commentOptions, format.comment);
+	return format;
 }
