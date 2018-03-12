@@ -1,10 +1,15 @@
-const destName = process.env.DEST_NAME || 'markup-formatters';
-
 export default {
+	input: './index.js',
 	external: ['@emmetio/field-parser', '@emmetio/output-renderer'],
-	exports: 'named',
-	targets: [
-		{format: 'cjs', dest: `dist/${destName}.cjs.js`},
-		{format: 'es',  dest: `dist/${destName}.es.js`}
-	]
+	output: [{
+		format: 'cjs',
+		exports: 'named',
+		sourcemap: true,
+		file: 'dist/markup-formatters.cjs.js'
+	}, {
+		format: 'es',
+		exports: 'named',
+		sourcemap: true,
+		file: 'dist/markup-formatters.es.js'
+	}]
 };

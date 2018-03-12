@@ -4,6 +4,7 @@ import html from './format/html';
 import haml from './format/haml';
 import slim from './format/slim';
 import pug  from './format/pug';
+import template  from './lib/template';
 
 const supportedSyntaxes = { html, haml, slim, pug };
 
@@ -47,3 +48,5 @@ export default function(tree, profile, syntax, options) {
 export function supports(syntax) {
 	return !!syntax && syntax in supportedSyntaxes;
 }
+
+export { template };

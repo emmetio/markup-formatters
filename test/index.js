@@ -4,8 +4,7 @@ const assert = require('assert');
 const parse = require('@emmetio/abbreviation');
 const Profile = require('@emmetio/output-profile');
 const replaceVariables = require('@emmetio/variable-resolver');
-require('babel-register');
-const format = require('../index').default;
+const format = require('../').default;
 
 describe('Main formatter', () => {
 	const expand = (abbr, syntax) =>

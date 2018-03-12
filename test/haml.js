@@ -4,8 +4,7 @@ const assert = require('assert');
 const parse = require('@emmetio/abbreviation');
 const Profile = require('@emmetio/output-profile');
 const replaceVariables = require('@emmetio/variable-resolver');
-require('babel-register');
-const haml = require('../format/haml').default;
+const format = require('../').default;
 
 describe('HAML formatter', () => {
     const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
@@ -15,7 +14,7 @@ describe('HAML formatter', () => {
             profile = null;
         }
 
-        return haml(replaceVariables(parse(abbr)), profile || new Profile(), options);
+        return format(replaceVariables(parse(abbr)), profile || new Profile(), 'haml', options);
     };
 
     it('basic', () => {

@@ -4,8 +4,7 @@ const assert = require('assert');
 const parse = require('@emmetio/abbreviation');
 const Profile = require('@emmetio/output-profile');
 const replaceVariables = require('@emmetio/variable-resolver');
-require('babel-register');
-const html = require('../format/html').default;
+const format = require('../').default;
 
 describe('HTML formatter', () => {
 	const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
@@ -15,7 +14,7 @@ describe('HTML formatter', () => {
 			profile = null;
 		}
 
-		return html(replaceVariables(parse(abbr)), profile || new Profile(), options);
+		return format(replaceVariables(parse(abbr)), profile || new Profile(), 'html', options);
 	};
 
 	it('basic', () => {

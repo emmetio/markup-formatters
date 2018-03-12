@@ -4,8 +4,7 @@ const assert = require('assert');
 const parse = require('@emmetio/abbreviation');
 const Profile = require('@emmetio/output-profile');
 const replaceVariables = require('@emmetio/variable-resolver');
-require('babel-register');
-const pug = require('../format/pug').default;
+const format = require('../').default;
 
 describe('Pug formatter', () => {
     const field = (index, placeholder) => `\${${index}${placeholder ? ':' + placeholder : ''}}`;
@@ -15,7 +14,7 @@ describe('Pug formatter', () => {
             profile = null;
         }
 
-        return pug(replaceVariables(parse(abbr)), profile || new Profile(), options);
+        return format(replaceVariables(parse(abbr)), profile || new Profile(), 'pug', options);
     };
 
     it('basic', () => {

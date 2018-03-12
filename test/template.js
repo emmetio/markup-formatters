@@ -1,8 +1,7 @@
 'use strict';
 
 const assert = require('assert');
-require('babel-register');
-const tmpl = require('../lib/template').default;
+const tmpl = require('../').template;
 
 describe('Template', () => {
     it('replace', () => {
