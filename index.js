@@ -5,7 +5,7 @@ import haml from './format/haml';
 import slim from './format/slim';
 import pug  from './format/pug';
 
-const supportedSyntaxed = { html, haml, slim, pug };
+const supportedSyntaxes = { html, haml, slim, pug };
 
 /**
  * Outputs given parsed abbreviation in specified syntax
@@ -36,7 +36,7 @@ export default function(tree, profile, syntax, options) {
 		syntax = 'html';
 	}
 
-	return supportedSyntaxed[syntax](tree, profile, options);
+	return supportedSyntaxes[syntax](tree, profile, options);
 }
 
 /**
@@ -45,5 +45,5 @@ export default function(tree, profile, syntax, options) {
  * @return {Boolean}
  */
 export function supports(syntax) {
-	return !!syntax && syntax in supportedSyntaxed;
+	return !!syntax && syntax in supportedSyntaxes;
 }
