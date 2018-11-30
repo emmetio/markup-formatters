@@ -230,7 +230,7 @@ function formatAttributes(outNode, profile) {
 		}
 
     return attr.options.before && attr.options.after
-      ? ` ${attrName}={${attr.value}}`
+      ? ` ${attrName}={${attrValue}}`
       : ` ${attrName}=${profile.quote(attrValue)}`;
 	}).join('');
 }
