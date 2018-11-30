@@ -229,9 +229,9 @@ function formatAttributes(outNode, profile) {
 			attrValue = outNode.renderFields(attr.value);
 		}
 
-    return attr.options.before && attr.options.after
-      ? ` ${attrName}={${attrValue}}`
-      : ` ${attrName}=${profile.quote(attrValue)}`;
+		return attr.options.before && attr.options.after
+			? ` ${attrName}={${attrValue}}`
+			: ` ${attrName}=${profile.quote(attrValue)}`;
 	}).join('');
 }
 
