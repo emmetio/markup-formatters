@@ -1,3 +1,9 @@
+# Deprecated
+
+Project development is moved to monorepo: https://github.com/emmetio/emmet
+
+---
+
 # Emmet output formatters [![Build Status](https://travis-ci.org/emmetio/markup-formatters.svg?branch=master)](https://travis-ci.org/emmetio/markup-formatters)
 
 A collection of output formatters for Emmet abbreviations. Takes [parsed abbreviation](https://github.com/emmetio/abbreviation) and returns its string representation, formatted according to given [output profile](https://github.com/emmetio/output-profile), in one of supported syntax:
